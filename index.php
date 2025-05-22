@@ -6,7 +6,6 @@ if (isset($_GET['codigoindicador'])) {
     $codigo_indicador = $_GET['codigoindicador'];
 
     validaIndicador($location, $rest_key, $codigo_indicador);
-    $products = buscarProdutos($location, $rest_key, null);
 } else {
    header("location: indisponivel.php");
    exit;

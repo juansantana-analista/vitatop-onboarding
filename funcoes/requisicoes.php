@@ -64,59 +64,6 @@ function validaIndicador($location, $rest_key, $codigo_indicador)
 
 
 
-//Inicio da Função que busca Produtos
-function buscarProdutos($location, $rest_key, $produtoId)
-{
-
-    // Busca de produtos
-// Dados a serem enviados no corpo da requisição
-    if ($produtoId) {
-        $productData = [
-            'class' => 'ProdutoVariacaoRest',
-            'method' => 'loadAll',
-            'filters' => [
-                ['id', '=', $produtoId]
-            ]
-        ];
-    } else {
-        $productData = [
-            'class' => 'ProdutoVariacaoRest',
-            'method' => 'loadAll',
-            'filters' => [
-                ['produto_kit', '=', 1]
-            ]
-        ];
-    }
-
-    // Inicializa o cURL para validação do indicador
-    $ch = curl_init($location);
-
-    // Define as opções do cURL
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($productData));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json',
-        'Authorization: Basic ' . $rest_key
-    ]);
-    // Executa a requisição
-    $response = curl_exec($ch);
-    // Verifica se houve erros
-    if ($response === false) {
-        $products = [];
-    } else {
-        // Decodifica a resposta JSON
-        $products = json_decode($response, true);
-    }
-
-    // Fecha a sessão cURL para buscar produtos
-    curl_close($ch);
-
-    //Retorna os produtos
-    return $products;
-}
-//Fim da Função que busca Produtos
-
 //Inicio da Função que busca Pessoa
 function buscarPessoa($location, $rest_key, $idPessoa)
 {
@@ -154,47 +101,6 @@ function processarFormulario($location, $rest_key, $formData)
     $requestData = [
         'class' => 'PessoaRestService',
         'method' => 'salvarNovoUsuario',
-        'dados' => $formData
-    ];
-
-    // Inicializa o cURL
-    $ch = curl_init($location);
-
-    // Define as opções do cURL
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestData));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json',
-        'Authorization: Basic ' . $rest_key
-    ]);
-
-    // Executa a requisição
-    $response = curl_exec($ch);
-
-    // Verifica se houve erros
-    if ($response === false) {
-        $error = curl_error($ch);
-        curl_close($ch);
-        return ['status' => 'error', 'message' => $error];
-    }
-
-    // Decodifica a resposta JSON
-    $result = json_decode($response, true);
-    curl_close($ch);
-
-    // Retorna o resultado
-    return $result;
-}
-//Fim da Função que valida o formulario e cadastra o usuario
-
-//Inicio da Função que cadastra Endereco de Entrega
-function cadastrarEnderecoEntrega($location, $rest_key, $formData)
-{
-    // Dados a serem enviados no corpo da requisição
-    $requestData = [
-        'class' => 'EnderecoRest',
-        'method' => 'salvarEnderecoEntrega',
         'dados' => $formData
     ];
 
@@ -311,45 +217,3 @@ function verificarEmail($location, $rest_key, $formData)
     return $result;
 }
 //Fim da Função que verifica Email cadastrado
-
-// Início da Função que envia os dados do checkout
-function enviarDadosCheckout($location, $rest_key, $formData)
-{
-    // Dados a serem enviados no corpo da requisição
-    $requestData = [
-        'class' => 'PagamentoSafe2payRest',
-        'method' => 'ComprarKit',
-        'data' => $formData
-    ];
-
-    // Inicializa o cURL
-    $ch = curl_init($location);
-
-    // Define as opções do cURL
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestData));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json',
-        'Authorization: Basic ' . $rest_key
-    ]);
-
-    // Executa a requisição
-    $response = curl_exec($ch);
-
-    // Verifica se houve erros
-    if ($response === false) {
-        $error = curl_error($ch);
-        curl_close($ch);
-        return ['status' => 'error', 'message' => $error];
-    }
-
-    // Decodifica a resposta JSON
-    $result = json_decode($response, true);
-    curl_close($ch);
-
-    // Retorna o resultado
-    return $result;
-}
-
-// Fim da Função que envia os dados do checkout
