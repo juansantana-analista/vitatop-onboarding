@@ -1,18 +1,3 @@
-<?php
-include("funcoes/requisicoes.php");
-include("termos_politica.php");
-// Validação do indicador
-if (isset($_GET['codigoindicador'])) {
-    $codigo_indicador = $_GET['codigoindicador'];
-
-    validaIndicador($location, $rest_key, $codigo_indicador);
-} else {
-   header("location: indisponivel.php");
-   exit;
-}
-
-?>
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -38,7 +23,7 @@ if (isset($_GET['codigoindicador'])) {
         <!-- Logo -->
         <div class="logo-container">
             <div class="logo">
-                <img src="img/logo.png" alt="" width="180px">
+                <img src="img/logo.png" width="180px" alt="" srcset="">
             </div>
             <p class="subtitle">Seja nosso distribuidor independente VitaTop</p>
         </div>
@@ -55,11 +40,11 @@ if (isset($_GET['codigoindicador'])) {
                 <div class="person-type-container">
                     <label class="person-type-label">Tipo de cadastro</label>
                     <div class="person-type-options">
-                        <div class="person-type-option active" data-type="pf">
+                        <div class="person-type-option active" data-type="F">
                             <i class="fas fa-user"></i>
                             <span>Pessoa Física</span>
                         </div>
-                        <div class="person-type-option" data-type="pj">
+                        <div class="person-type-option" data-type="J">
                             <i class="fas fa-building"></i>
                             <span>Pessoa Jurídica</span>
                         </div>
@@ -235,7 +220,7 @@ if (isset($_GET['codigoindicador'])) {
             </div>
             
             <div class="success-content">
-                <h2>Bem-vindo à VitaTop!</h2>
+                <h2>Bem-vindo à AffiliateHub!</h2>
                 <p>Seu cadastro foi realizado com sucesso</p>
                 <div class="success-details">
                     <div class="success-item">
@@ -262,6 +247,7 @@ if (isset($_GET['codigoindicador'])) {
         </div>
     </div>
 
+    <script src="js/config.js"></script>
     <script src="js/script.js"></script>
 </body>
 </html>

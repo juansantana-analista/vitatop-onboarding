@@ -3,7 +3,8 @@ class OnboardingApp {
     constructor() {
         this.currentStep = 1;
         this.userData = {};
-        this.personType = 'pf'; // Default to Pessoa Física
+        this.personType = 'F'; // Default to Pessoa Física
+        this.validationInProgress = false;
         
         this.init();
     }
@@ -30,16 +31,22 @@ class OnboardingApp {
             });
         }
         
-        // Form validation on input
+        // Form validation on input with debounce for remote validation
         document.querySelectorAll('input[required], select[required]').forEach(input => {
-            input.addEventListener('blur', () => {
-                this.validateField(input);
+            // Immediate validation for basic checks
+            input.addEventListener('input', () => {
+                this.clearFieldError(input);
+            });
+            
+            // Detailed validation on blur (including remote validation)
+            input.addEventListener('blur', async () => {
+                await this.validateField(input);
             });
         });
         
         // Enter key navigation
         document.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !this.validationInProgress) {
                 const activeStep = document.querySelector('.step.active');
                 if (activeStep.id === 'step1') {
                     this.nextStep();
@@ -102,23 +109,25 @@ class OnboardingApp {
         const documentLabel = document.getElementById('documentLabel');
         const documentInput = document.getElementById('document');
         
-        if (this.personType === 'pj') {
-            documentLabel.textContent = 'CNPJ *';
-            documentInput.placeholder = '00.000.000/0000-00';
+        if (this.personType === 'J') {
+            documentLabel.textContent = OnboardingConfig.validation.documentTypes.pj + ' *';
+            documentInput.placeholder = OnboardingConfig.masks.cnpj;
         } else {
-            documentLabel.textContent = 'CPF *';
-            documentInput.placeholder = '000.000.000-00';
+            documentLabel.textContent = OnboardingConfig.validation.documentTypes.pf + ' *';
+            documentInput.placeholder = OnboardingConfig.masks.cpf;
         }
         
         // Clear current value and reapply mask
         documentInput.value = '';
+        // Clear any existing validation errors
+        this.clearFieldError(documentInput);
     }
     
     applyDocumentMask() {
         const input = document.getElementById('document');
         let value = input.value.replace(/\D/g, '');
         
-        if (this.personType === 'pj') {
+        if (this.personType === 'J') {
             // CNPJ mask: 00.000.000/0000-00
             value = value.replace(/^(\d{2})(\d)/, '$1.$2');
             value = value.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
@@ -162,22 +171,22 @@ class OnboardingApp {
         if (cep.length !== 8) return;
         
         const loading = document.getElementById('cepLoading');
-        loading.style.display = 'block';
+        if (loading) loading.style.display = 'block';
         
         try {
-            const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+            const response = await fetch(`${OnboardingConfig.endpoints.viaCep}${cep}/json/`);
             const data = await response.json();
             
             if (!data.erro) {
                 this.fillAddressFields(data);
-                this.showSuccess('Endereço encontrado!');
+                this.showSuccess(OnboardingConfig.ui.successMessages.addressFound);
             } else {
-                this.showError('CEP não encontrado');
+                this.showError(OnboardingConfig.ui.errorMessages.cepNotFound);
             }
         } catch (error) {
-            this.showError('Erro ao buscar CEP');
+            this.showError(OnboardingConfig.ui.errorMessages.cepError);
         } finally {
-            loading.style.display = 'none';
+            if (loading) loading.style.display = 'none';
         }
     }
     
@@ -191,56 +200,137 @@ class OnboardingApp {
         document.getElementById('number').focus();
     }
     
-    validateField(field) {
+    clearFieldError(field) {
         const wrapper = field.closest('.input-wrapper');
         const errorMessage = wrapper.querySelector('.error-message');
         
-        // Remove existing error state
         wrapper.classList.remove('error');
         if (errorMessage) {
             errorMessage.remove();
         }
+    }
+    
+    showFieldError(field, message) {
+        const wrapper = field.closest('.input-wrapper');
+        
+        // Clear existing error first
+        this.clearFieldError(field);
+        
+        // Add error state
+        wrapper.classList.add('error');
+        
+        // Create and append error message
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+        wrapper.parentNode.appendChild(errorDiv);
+    }
+    
+    // Comprehensive field validation function
+    async validateField(field) {
+        if (this.validationInProgress) return true;
         
         let isValid = true;
         let message = '';
         
+        const fieldValue = field.value.trim();
+        
         // Required field validation
-        if (field.hasAttribute('required') && !field.value.trim()) {
+        if (field.hasAttribute('required') && !fieldValue) {
             isValid = false;
-            message = 'Este campo é obrigatório';
+            message = OnboardingConfig.ui.errorMessages.requiredField || 'Este campo é obrigatório';
+        }
+        
+        // If field is empty and not required, or if basic validation failed, return early
+        if (!fieldValue || !isValid) {
+            if (!isValid) {
+                this.showFieldError(field, message);
+            }
+            return isValid;
         }
         
         // Email validation
-        if (field.type === 'email' && field.value) {
+        if (field.type === 'email') {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(field.value)) {
+            if (!emailRegex.test(fieldValue)) {
                 isValid = false;
-                message = 'E-mail inválido';
+                message = OnboardingConfig.ui.errorMessages.invalidEmail || 'E-mail inválido';
+            } else {
+                // Remote email validation
+                try {
+                    this.validationInProgress = true;
+                    const emailAvailable = await this.validateEmailRemote(fieldValue);
+                    if (!emailAvailable) {
+                        isValid = false;
+                        message = OnboardingConfig.ui.errorMessages.emailExists || 'Este e-mail já está cadastrado';
+                    }
+                } catch (error) {
+                    console.error('Erro na validação do email:', error);
+                    // Continue without blocking if remote validation fails
+                } finally {
+                    this.validationInProgress = false;
+                }
             }
         }
         
         // Document validation
-        if (field.id === 'document' && field.value) {
-            if (!this.validateDocument(field.value)) {
+        if (field.id === 'document') {
+            // Basic format validation
+            if (!this.validateDocument(fieldValue)) {
                 isValid = false;
-                message = this.personType === 'pj' ? 'CNPJ inválido' : 'CPF inválido';
+                message = this.personType === 'J' ? 
+                    (OnboardingConfig.ui.errorMessages.invalidCNPJ || 'CNPJ inválido') : 
+                    (OnboardingConfig.ui.errorMessages.invalidCPF || 'CPF inválido');
+            } else {
+                // Remote document validation
+                try {
+                    this.validationInProgress = true;
+                    const docAvailable = await this.validateDocumentRemote(fieldValue, this.personType);
+                    if (!docAvailable) {
+                        isValid = false;
+                        message = this.personType === 'J' ? 
+                            (OnboardingConfig.ui.errorMessages.cnpjExists || 'Este CNPJ já está cadastrado') : 
+                            (OnboardingConfig.ui.errorMessages.cpfExists || 'Este CPF já está cadastrado');
+                    }
+                } catch (error) {
+                    console.error('Erro na validação do documento:', error);
+                    // Continue without blocking if remote validation fails
+                } finally {
+                    this.validationInProgress = false;
+                }
             }
         }
         
         // Password validation
-        if (field.id === 'password' && field.value) {
-            if (field.value.length < 8) {
+        if (field.id === 'password') {
+            const minLength = OnboardingConfig.validation.minPasswordLength || 8;
+            if (fieldValue.length < minLength) {
                 isValid = false;
-                message = 'Senha deve ter no mínimo 8 caracteres';
+                message = OnboardingConfig.ui.errorMessages.shortPassword || `Senha deve ter no mínimo ${minLength} caracteres`;
             }
         }
         
+        // Phone validation (basic)
+        if (field.id === 'phone') {
+            const phoneDigits = fieldValue.replace(/\D/g, '');
+            if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+                isValid = false;
+                message = 'Telefone inválido';
+            }
+        }
+        
+        // CEP validation
+        if (field.id === 'cep') {
+            const cepDigits = fieldValue.replace(/\D/g, '');
+            if (cepDigits.length !== 8) {
+                isValid = false;
+                message = 'CEP inválido';
+            }
+        }
+        
+        // Show error if validation failed
         if (!isValid) {
-            wrapper.classList.add('error');
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error-message';
-            errorDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
-            wrapper.parentNode.appendChild(errorDiv);
+            this.showFieldError(field, message);
         }
         
         return isValid;
@@ -249,7 +339,7 @@ class OnboardingApp {
     validateDocument(doc) {
         const cleanDoc = doc.replace(/\D/g, '');
         
-        if (this.personType === 'pj') {
+        if (this.personType === 'J') {
             return this.validateCNPJ(cleanDoc);
         } else {
             return this.validateCPF(cleanDoc);
@@ -311,42 +401,118 @@ class OnboardingApp {
         return true;
     }
     
-    validateStep(stepNumber) {
+    // Validate all fields in a step
+    async validateStep(stepNumber) {
         const step = document.getElementById(`step${stepNumber}`);
         const requiredFields = step.querySelectorAll('input[required], select[required]');
         let isValid = true;
         
+        // Clear all existing errors first
         requiredFields.forEach(field => {
-            if (!this.validateField(field)) {
+            this.clearFieldError(field);
+        });
+        
+        // Validate each field
+        for (const field of requiredFields) {
+            const fieldValid = await this.validateField(field);
+            if (!fieldValid) {
                 isValid = false;
             }
-        });
+        }
         
         return isValid;
     }
     
-    nextStep() {
-        if (!this.validateStep(1)) {
-            this.showError('Por favor, corrija os erros antes de continuar');
+    async validateDocumentRemote(document, personType) {
+        try {
+            const formData = new FormData();
+            formData.append('documento', document);
+            formData.append('tipoPessoa', personType);
+            
+            const response = await fetch(OnboardingConfig.endpoints.validateDocument, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.text();
+            return result === 'sucesso'; // Returns true if document doesn't exist (can register)
+        } catch (error) {
+            console.error('Erro ao validar documento:', error);
+            // Return true on error to not block registration due to connectivity issues
+            return true;
+        }
+    }
+    
+    async validateEmailRemote(email) {
+        try {
+            const formData = new FormData();
+            formData.append('email', email);
+            
+            const response = await fetch(OnboardingConfig.endpoints.validateEmail, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.text();
+            return result === 'sucesso'; // Returns true if email doesn't exist (can register)
+        } catch (error) {
+            console.error('Erro ao validar email:', error);
+            // Return true on error to not block registration due to connectivity issues
+            return true;
+        }
+    }
+    
+    async nextStep() {
+        // Prevent multiple simultaneous validations
+        if (this.validationInProgress) {
             return;
         }
         
-        // Save step 1 data
-        this.userData = {
-            personType: this.personType,
-            name: document.getElementById('name').value,
-            document: document.getElementById('document').value,
-            email: document.getElementById('email').value,
-            phone: document.getElementById('phone').value,
-            password: document.getElementById('password').value
-        };
+        // Show loading on continue button while validating
+        const continueBtn = document.querySelector('#step1 .btn-primary');
+        const originalHtml = continueBtn.innerHTML;
+        continueBtn.disabled = true;
+        continueBtn.classList.add('loading');
+        continueBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${OnboardingConfig.ui.loadingMessages?.validating || 'Validando...'}`;
         
-        this.currentStep = 2;
-        this.showStep(2);
-        this.updateProgress();
-        
-        // Add transition effect
-        this.addTransitionEffect();
+        try {
+            this.validationInProgress = true;
+            
+            // Comprehensive validation of step 1
+            const isValid = await this.validateStep(1);
+            
+            if (!isValid) {
+                this.showError(OnboardingConfig.ui.errorMessages?.validationError || 'Por favor, corrija os erros antes de continuar');
+                return;
+            }
+            
+            // Save step 1 data
+            this.userData = {
+                personType: this.personType,
+                name: document.getElementById('name').value.trim(),
+                document: document.getElementById('document').value,
+                email: document.getElementById('email').value.trim(),
+                phone: document.getElementById('phone').value,
+                password: document.getElementById('password').value
+            };
+            
+            this.currentStep = 2;
+            this.showStep(2);
+            this.updateProgress();
+            
+            // Add transition effect
+            this.addTransitionEffect();
+            
+        } catch (error) {
+            console.error('Erro na validação:', error);
+            this.showError('Erro interno. Tente novamente.');
+        } finally {
+            // Reset button state
+            this.validationInProgress = false;
+            continueBtn.disabled = false;
+            continueBtn.classList.remove('loading');
+            continueBtn.innerHTML = originalHtml;
+        }
     }
     
     prevStep() {
@@ -368,85 +534,172 @@ class OnboardingApp {
         const progressFill = document.getElementById('progressFill');
         const progressText = document.getElementById('progressText');
         
-        if (this.currentStep === 1) {
-            progressFill.style.width = '50%';
-            progressText.textContent = 'Etapa 1 de 2';
-        } else if (this.currentStep === 2) {
-            progressFill.style.width = '100%';
-            progressText.textContent = 'Etapa 2 de 2';
+        if (progressFill && progressText) {
+            if (this.currentStep === 1) {
+                progressFill.style.width = '50%';
+                progressText.textContent = 'Etapa 1 de 2';
+            } else if (this.currentStep === 2) {
+                progressFill.style.width = '100%';
+                progressText.textContent = 'Etapa 2 de 2';
+            }
         }
     }
     
     addTransitionEffect() {
         const container = document.querySelector('.container');
-        container.style.transform = 'scale(0.98)';
-        setTimeout(() => {
-            container.style.transform = '';
-        }, 200);
+        if (container) {
+            container.style.transform = 'scale(0.98)';
+            setTimeout(() => {
+                container.style.transform = '';
+            }, 200);
+        }
     }
     
     async finishRegistration() {
-        if (!this.validateStep(2)) {
-            this.showError('Por favor, corrija os erros antes de finalizar');
+        // Prevent multiple simultaneous submissions
+        if (this.validationInProgress) {
             return;
         }
         
-        // Save step 2 data
-        this.userData.address = {
-            cep: document.getElementById('cep').value,
-            street: document.getElementById('street').value,
-            number: document.getElementById('number').value,
-            complement: document.getElementById('complement').value,
-            neighborhood: document.getElementById('neighborhood').value,
-            city: document.getElementById('city').value,
-            state: document.getElementById('state').value
-        };
-        
         // Show loading state
-        const submitButton = document.querySelector('.btn-primary');
+        const submitButton = document.querySelector('#step2 .btn-primary');
+        const originalHtml = submitButton.innerHTML;
+        submitButton.disabled = true;
         submitButton.classList.add('loading');
-        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cadastrando...';
+        submitButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${OnboardingConfig.ui.loadingMessages?.registering || 'Finalizando cadastro...'}`;
         
         try {
-            // Simulate API call
-            await this.simulateApiCall();
+            this.validationInProgress = true;
+            
+            // Validate step 2
+            const isValid = await this.validateStep(2);
+            
+            if (!isValid) {
+                this.showError('Por favor, corrija os erros antes de finalizar');
+                return;
+            }
+            
+            // Save step 2 data
+            this.userData.address = {
+                cep: document.getElementById('cep').value,
+                street: document.getElementById('street').value.trim(),
+                number: document.getElementById('number').value.trim(),
+                complement: document.getElementById('complement').value.trim(),
+                neighborhood: document.getElementById('neighborhood').value.trim(),
+                city: document.getElementById('city').value.trim(),
+                state: document.getElementById('state').value.trim()
+            };
+            
+            // Process registration
+            await this.processRegistration();
             
             // Show success step
             this.showSuccessStep();
             
         } catch (error) {
-            this.showError('Erro ao realizar cadastro. Tente novamente.');
+            console.error('Erro no cadastro:', error);
+            this.showError(OnboardingConfig.ui.errorMessages?.registrationError || 'Erro ao finalizar cadastro. Tente novamente.');
+        } finally {
+            this.validationInProgress = false;
+            submitButton.disabled = false;
             submitButton.classList.remove('loading');
-            submitButton.innerHTML = 'Finalizar cadastro <i class="fas fa-check"></i>';
+            submitButton.innerHTML = originalHtml;
         }
     }
     
-    async simulateApiCall() {
-        // Simulate network delay
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                console.log('User registered:', this.userData);
-                resolve();
-            }, 2000);
-        });
+    async processRegistration() {
+        try {
+            // Prepare form data according to processa_cadastro.php structure
+            const formData = new FormData();
+            
+            // Add action identifier for AJAX handler
+            formData.append('action', 'register');
+            
+            // Add all required fields based on processa_cadastro.php
+            formData.append('tipoPessoa', this.personType);
+            formData.append('nomeAfiliado', this.userData.name);
+            formData.append('razaoSocial', this.personType === 'J' ? this.userData.name : '');
+            formData.append('dataNascimento', ''); // You might want to add this field
+            formData.append('genero', ''); // You might want to add this field
+            
+            if (this.personType === 'F') {
+                formData.append('CPF', this.userData.document.replace(/\D/g, ''));
+                formData.append('RG', '');
+                formData.append('CNPJ', '');
+                formData.append('inscEstadual', '');
+            } else {
+                formData.append('CPF', '');
+                formData.append('RG', '');
+                formData.append('CNPJ', this.userData.document.replace(/\D/g, ''));
+                formData.append('inscEstadual', '');
+            }
+            
+            formData.append('email', this.userData.email);
+            formData.append('senha', this.userData.password);
+            formData.append('resenha', this.userData.password); // Confirm password
+            formData.append('telefone', '');
+            formData.append('celular', this.userData.phone.replace(/\D/g, ''));
+            formData.append('cep', this.userData.address.cep.replace(/\D/g, ''));
+            formData.append('endereco', this.userData.address.street);
+            formData.append('numero', this.userData.address.number);
+            formData.append('complemento', this.userData.address.complement);
+            formData.append('bairro', this.userData.address.neighborhood);
+            formData.append('cidade', this.userData.address.city);
+            formData.append('estado', this.userData.address.state);
+            
+            console.log(formData);
+            // Submit to ajax_handler.php for JSON response
+            const response = await fetch(OnboardingConfig.endpoints.register, {
+                method: 'POST',
+                body: formData
+            });
+            
+            // Parse JSON response
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                // Store success data
+                this.registrationSuccess = true;
+                this.successRedirect = result.redirect;
+                return true;
+            } else {
+                throw new Error(result.message || 'Erro no cadastro');
+            }
+            
+        } catch (error) {
+            console.error('Erro no cadastro:', error);
+            throw error;
+        }
     }
     
     showSuccessStep() {
         // Hide progress bar
-        document.querySelector('.progress-container').style.display = 'none';
+        const progressContainer = document.querySelector('.progress-container');
+        if (progressContainer) {
+            progressContainer.style.display = 'none';
+        }
         
         // Show success step
         document.querySelectorAll('.step').forEach(step => {
             step.classList.remove('active');
         });
         
-        document.getElementById('successStep').classList.add('active');
+        const successStep = document.getElementById('successStep');
+        if (successStep) {
+            successStep.classList.add('active');
+        }
         
         // Fill success details
-        document.getElementById('registeredEmail').textContent = this.userData.email;
+        const registeredEmail = document.getElementById('registeredEmail');
+        if (registeredEmail) {
+            registeredEmail.textContent = this.userData.email;
+        }
         
-        // Set app link (replace with your actual app URL)
-        document.getElementById('appLink').href = 'https://app.affiliatehub.com';
+        // Set app link - if there was a redirect URL from registration, use it
+        const appLink = document.getElementById('appLink');
+        if (appLink) {
+            appLink.href = this.successRedirect || 'sucesso.php';
+        }
         
         // Add confetti effect
         this.showConfetti();
@@ -487,28 +740,37 @@ class OnboardingApp {
         // Reset everything
         this.currentStep = 1;
         this.userData = {};
-        this.personType = 'pf';
+        this.personType = 'F';
+        this.validationInProgress = false;
         
         // Reset form
         document.querySelectorAll('input').forEach(input => {
             input.value = '';
+            this.clearFieldError(input);
         });
         
         document.querySelectorAll('select').forEach(select => {
             select.selectedIndex = 0;
+            this.clearFieldError(select);
         });
         
         // Reset person type selection
         document.querySelectorAll('.person-type-option').forEach(option => {
             option.classList.remove('active');
         });
-        document.querySelector('.person-type-option[data-type="pf"]').classList.add('active');
+        const pfOption = document.querySelector('.person-type-option[data-type="F"]');
+        if (pfOption) {
+            pfOption.classList.add('active');
+        }
         
         // Show step 1
         this.showStep(1);
         
         // Show progress bar
-        document.querySelector('.progress-container').style.display = 'block';
+        const progressContainer = document.querySelector('.progress-container');
+        if (progressContainer) {
+            progressContainer.style.display = 'block';
+        }
         this.updateProgress();
         
         // Update document field
@@ -530,6 +792,7 @@ class OnboardingApp {
             border-radius: 8px;
             z-index: 10000;
             animation: slideIn 0.3s ease-out;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         `;
         
         document.body.appendChild(toast);
@@ -554,15 +817,19 @@ class OnboardingApp {
             border-radius: 8px;
             z-index: 10000;
             animation: slideIn 0.3s ease-out;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         `;
         
         document.body.appendChild(toast);
         
         // Add shake effect to container
-        document.querySelector('.container').classList.add('shake');
-        setTimeout(() => {
-            document.querySelector('.container').classList.remove('shake');
-        }, 500);
+        const container = document.querySelector('.container');
+        if (container) {
+            container.classList.add('shake');
+            setTimeout(() => {
+                container.classList.remove('shake');
+            }, 500);
+        }
         
         setTimeout(() => {
             toast.remove();
@@ -574,6 +841,9 @@ class OnboardingApp {
 function togglePassword(fieldId) {
     const field = document.getElementById(fieldId);
     const toggle = field.nextElementSibling;
+    
+    if (!field || !toggle) return;
+    
     const icon = toggle.querySelector('i');
     
     if (field.type === 'password') {
@@ -586,22 +856,30 @@ function togglePassword(fieldId) {
 }
 
 function nextStep() {
-    app.nextStep();
+    if (window.app) {
+        window.app.nextStep();
+    }
 }
 
 function prevStep() {
-    app.prevStep();
+    if (window.app) {
+        window.app.prevStep();
+    }
 }
 
 function finishRegistration() {
-    app.finishRegistration();
+    if (window.app) {
+        window.app.finishRegistration();
+    }
 }
 
 function startOver() {
-    app.startOver();
+    if (window.app) {
+        window.app.startOver();
+    }
 }
 
-// Add CSS for toast animations
+// Add CSS for animations and loading states
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideIn {
@@ -614,12 +892,183 @@ style.textContent = `
             opacity: 1;
         }
     }
+    
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+        20%, 40%, 60%, 80% { transform: translateX(5px); }
+    }
+    
+    .shake {
+        animation: shake 0.5s ease-in-out;
+    }
+    
+    .btn-primary.loading {
+        position: relative;
+        color: transparent !important;
+        pointer-events: none;
+    }
+    
+    .btn-primary.loading::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 20px;
+        height: 20px;
+        border: 2px solid #ffffff;
+        border-top: 2px solid transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: translate(-50%, -50%) rotate(0deg); }
+        100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    
+    .input-wrapper.error input,
+    .input-wrapper.error select {
+        border-color: #ef4444 !important;
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+    }
+    
+    .error-message {
+        color: #ef4444;
+        font-size: 0.875rem;
+        margin-top: 5px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .error-message i {
+        font-size: 0.8rem;
+    }
+    
+    .toast {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 500;
+        border-radius: 8px;
+        backdrop-filter: blur(10px);
+    }
+    
+    .toast.success {
+        background: linear-gradient(135deg, #10b981, #059669);
+    }
+    
+    .toast.error {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+    
+    /* Loading state for validation */
+    .validation-loading {
+        position: relative;
+    }
+    
+    .validation-loading::after {
+        content: '';
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 16px;
+        height: 16px;
+        border: 2px solid #e5e7eb;
+        border-top: 2px solid #6366f1;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    /* Smooth transitions */
+    .input-wrapper input,
+    .input-wrapper select {
+        transition: all 0.2s ease;
+    }
+    
+    .btn-primary {
+        transition: all 0.2s ease;
+    }
+    
+    .btn-primary:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+    
+    .step {
+        transition: all 0.3s ease;
+    }
+    
+    .person-type-option {
+        transition: all 0.2s ease;
+    }
+    
+    .person-type-option:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .person-type-option.active {
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
 `;
 document.head.appendChild(style);
 
+// Enhanced configuration fallback
+window.OnboardingConfig = window.OnboardingConfig || {
+    endpoints: {
+        viaCep: 'https://viacep.com.br/ws/',
+        validateDocument: './ajax/validar_documento.php',
+        validateEmail: './ajax/validar_email.php',
+        register: './ajax/processa_cadastro.php'
+    },
+    validation: {
+        documentTypes: {
+            pf: 'CPF',
+            pj: 'CNPJ'
+        },
+        minPasswordLength: 8
+    },
+    masks: {
+        cpf: '000.000.000-00',
+        cnpj: '00.000.000/0000-00'
+    },
+    ui: {
+        errorMessages: {
+            requiredField: 'Este campo é obrigatório',
+            invalidEmail: 'E-mail inválido',
+            emailExists: 'Este e-mail já está cadastrado',
+            invalidCPF: 'CPF inválido',
+            invalidCNPJ: 'CNPJ inválido',
+            cpfExists: 'Este CPF já está cadastrado',
+            cnpjExists: 'Este CNPJ já está cadastrado',
+            shortPassword: 'Senha deve ter no mínimo 8 caracteres',
+            validationError: 'Por favor, corrija os erros antes de continuar',
+            registrationError: 'Erro ao finalizar cadastro. Tente novamente.',
+            cepNotFound: 'CEP não encontrado',
+            cepError: 'Erro ao buscar CEP'
+        },
+        successMessages: {
+            addressFound: 'Endereço encontrado!'
+        },
+        loadingMessages: {
+            validating: 'Validando...',
+            registering: 'Finalizando cadastro...'
+        }
+    }
+};
+
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    window.app = new OnboardingApp();
+    try {
+        window.app = new OnboardingApp();
+        console.log('Onboarding app initialized successfully');
+    } catch (error) {
+        console.error('Error initializing onboarding app:', error);
+    }
 });
 
 // Export for potential module usage
