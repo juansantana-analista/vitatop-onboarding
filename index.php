@@ -242,7 +242,7 @@ if (isset($_GET['codigoindicador'])) {
                     </div>
                     <div class="success-item">
                         <i class="fas fa-rocket"></i>
-                        <span>Sua jornada como afiliado começa agora!</span>
+                        <span>Sua jornada como distribuidor começa agora!</span>
                     </div>
                 </div>
                 
