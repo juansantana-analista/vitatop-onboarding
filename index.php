@@ -1,3 +1,16 @@
+<?php
+include("funcoes/requisicoes.php");
+// Validação do indicador
+if (isset($_GET['codigoindicador'])) {
+    $codigo_indicador = $_GET['codigoindicador'];
+
+    validaIndicador($location, $rest_key, $codigo_indicador);
+} else {
+   header("location: indisponivel.php");
+   exit;
+}
+
+?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -234,9 +247,9 @@
                 </div>
                 
                 <div class="success-actions">
-                    <a href="#" class="btn-primary" id="appLink">
+                    <a href="https://appvitatop.tecskill.com.br/" class="btn-primary" >
                         <i class="fas fa-external-link-alt"></i>
-                        Acessar plataforma
+                        Acessar Aplicativo
                     </a>
                     <button type="button" class="btn-secondary" onclick="startOver()">
                         <i class="fas fa-redo"></i>

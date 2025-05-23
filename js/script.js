@@ -1,4 +1,4 @@
-// Onboarding Logic
+// Onboarding Logic com FormData Debug Melhorado
 class OnboardingApp {
     constructor() {
         this.currentStep = 1;
@@ -226,6 +226,32 @@ class OnboardingApp {
         wrapper.parentNode.appendChild(errorDiv);
     }
     
+    // Função para debug do FormData
+    debugFormData(formData, label = 'FormData Debug') {
+        console.log(`\n=== ${label} ===`);
+        
+        // Método 1: Usando for...of (mais confiável)
+        console.log('Usando for...of:');
+        for (let [key, value] of formData.entries()) {
+            console.log(`${key}: ${value}`);
+        }
+        
+        // Método 2: Convertendo para objeto (para visualização melhor)
+        const formDataObj = {};
+        for (let [key, value] of formData.entries()) {
+            formDataObj[key] = value;
+        }
+        console.log('Como objeto:', formDataObj);
+        
+        // Método 3: Verificando se está vazio
+        const isEmpty = [...formData.entries()].length === 0;
+        console.log('FormData está vazio?', isEmpty);
+        
+        console.log('================\n');
+        
+        return formDataObj;
+    }
+    
     // Comprehensive field validation function
     async validateField(field) {
         if (this.validationInProgress) return true;
@@ -429,12 +455,17 @@ class OnboardingApp {
             formData.append('documento', document);
             formData.append('tipoPessoa', personType);
             
+            // Debug do FormData antes do envio
+            console.log('=== Validação de Documento ===');
+            this.debugFormData(formData, 'Validação Documento');
+            
             const response = await fetch(OnboardingConfig.endpoints.validateDocument, {
                 method: 'POST',
                 body: formData
             });
             
             const result = await response.text();
+            console.log('Resposta validação documento:', result);
             return result === 'sucesso'; // Returns true if document doesn't exist (can register)
         } catch (error) {
             console.error('Erro ao validar documento:', error);
@@ -448,12 +479,17 @@ class OnboardingApp {
             const formData = new FormData();
             formData.append('email', email);
             
+            // Debug do FormData antes do envio
+            console.log('=== Validação de Email ===');
+            this.debugFormData(formData, 'Validação Email');
+            
             const response = await fetch(OnboardingConfig.endpoints.validateEmail, {
                 method: 'POST',
                 body: formData
             });
             
             const result = await response.text();
+            console.log('Resposta validação email:', result);
             return result === 'sucesso'; // Returns true if email doesn't exist (can register)
         } catch (error) {
             console.error('Erro ao validar email:', error);
@@ -495,6 +531,8 @@ class OnboardingApp {
                 phone: document.getElementById('phone').value,
                 password: document.getElementById('password').value
             };
+            
+            console.log('Dados salvos do Step 1:', this.userData);
             
             this.currentStep = 2;
             this.showStep(2);
@@ -590,6 +628,8 @@ class OnboardingApp {
                 state: document.getElementById('state').value.trim()
             };
             
+            console.log('Dados completos do usuário:', this.userData);
+            
             // Process registration
             await this.processRegistration();
             
@@ -647,15 +687,40 @@ class OnboardingApp {
             formData.append('cidade', this.userData.address.city);
             formData.append('estado', this.userData.address.state);
             
-            console.log(formData);
-            // Submit to ajax_handler.php for JSON response
-            const response = await fetch(OnboardingConfig.endpoints.register, {
-                method: 'POST',
-                body: formData
-            });
+            // Debug do FormData completo antes do envio
+            console.log('=== CADASTRO FINAL ===');
+            const formDataDebug = this.debugFormData(formData, 'Cadastro Final');
             
-            // Parse JSON response
-            const result = await response.json();
+            // Verificação adicional se os dados estão sendo adicionados corretamente
+            console.log('Verificação manual dos dados:');
+            console.log('- tipoPessoa:', this.personType);
+            console.log('- nomeAfiliado:', this.userData.name);
+            console.log('- email:', this.userData.email);
+            console.log('- documento:', this.userData.document);
+            
+// Submit to ajax_handler.php for JSON response
+const response = await fetch(OnboardingConfig.endpoints.register, {
+    method: 'POST',
+    body: formData
+});
+
+// Clone da resposta antes de tentar fazer o parse
+const responseClone = response.clone();
+
+console.log('Response status:', response.status);
+console.log('Response headers:', [...response.headers.entries()]);
+
+// Parse JSON response
+let result;
+try {
+    result = await response.json();
+    console.log('Response JSON:', result);
+} catch (parseError) {
+    console.error('Erro ao fazer parse do JSON. Resposta como texto:');
+    const textResponse = await responseClone.text(); // ✅ Usa o clone aqui
+    console.log('Response text:', textResponse);
+    throw new Error('Resposta inválida do servidor');
+}
             
             if (result.status === 'success') {
                 // Store success data
