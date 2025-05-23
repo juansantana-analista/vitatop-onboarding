@@ -58,7 +58,7 @@ const OnboardingConfig = {
         logo: 'img/logo.png',
         subtitle: 'Seja nosso distribuidor independente VitaTop',
         successRedirect: 'sucesso.php',
-        appUrl: 'https://vitatop.tecskill.com.br/'
+        appUrl: 'https://appvitatop.tecskill.com.br/'
     }
 };
 

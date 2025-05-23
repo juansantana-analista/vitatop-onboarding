@@ -1,4 +1,4 @@
-// Onboarding Logic com FormData Debug Melhorado
+// Onboarding Logic com Validação Robusta
 class OnboardingApp {
     constructor() {
         this.currentStep = 1;
@@ -110,10 +110,10 @@ class OnboardingApp {
         const documentInput = document.getElementById('document');
         
         if (this.personType === 'J') {
-            documentLabel.textContent = OnboardingConfig.validation.documentTypes.pj + ' *';
+            documentLabel.textContent = 'CNPJ *';
             documentInput.placeholder = OnboardingConfig.masks.cnpj;
         } else {
-            documentLabel.textContent = OnboardingConfig.validation.documentTypes.pf + ' *';
+            documentLabel.textContent = 'CPF *';
             documentInput.placeholder = OnboardingConfig.masks.cpf;
         }
         
@@ -129,15 +129,19 @@ class OnboardingApp {
         
         if (this.personType === 'J') {
             // CNPJ mask: 00.000.000/0000-00
-            value = value.replace(/^(\d{2})(\d)/, '$1.$2');
-            value = value.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
-            value = value.replace(/\.(\d{3})(\d)/, '.$1/$2');
-            value = value.replace(/(\d{4})(\d)/, '$1-$2');
+            if (value.length <= 14) {
+                value = value.replace(/^(\d{2})(\d)/, '$1.$2');
+                value = value.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+                value = value.replace(/\.(\d{3})(\d)/, '.$1/$2');
+                value = value.replace(/(\d{4})(\d)/, '$1-$2');
+            }
         } else {
             // CPF mask: 000.000.000-00
-            value = value.replace(/(\d{3})(\d)/, '$1.$2');
-            value = value.replace(/(\d{3})\.(\d{3})(\d)/, '$1.$2.$3');
-            value = value.replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4');
+            if (value.length <= 11) {
+                value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                value = value.replace(/(\d{3})\.(\d{3})(\d)/, '$1.$2.$3');
+                value = value.replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4');
+            }
         }
         
         input.value = value;
@@ -148,8 +152,10 @@ class OnboardingApp {
         let value = input.value.replace(/\D/g, '');
         
         // Phone mask: (00) 00000-0000
-        value = value.replace(/(\d{2})(\d)/, '($1) $2');
-        value = value.replace(/(\d{5})(\d)/, '$1-$2');
+        if (value.length <= 11) {
+            value = value.replace(/(\d{2})(\d)/, '($1) $2');
+            value = value.replace(/(\d{5})(\d)/, '$1-$2');
+        }
         
         input.value = value;
     }
@@ -159,7 +165,9 @@ class OnboardingApp {
         let value = input.value.replace(/\D/g, '');
         
         // CEP mask: 00000-000
-        value = value.replace(/(\d{5})(\d)/, '$1-$2');
+        if (value.length <= 8) {
+            value = value.replace(/(\d{5})(\d)/, '$1-$2');
+        }
         
         input.value = value;
     }
@@ -201,7 +209,7 @@ class OnboardingApp {
     }
     
     clearFieldError(field) {
-        const wrapper = field.closest('.input-wrapper');
+        const wrapper = field.closest('.input-wrapper') || field.closest('.form-group');
         const errorMessage = wrapper.querySelector('.error-message');
         
         wrapper.classList.remove('error');
@@ -211,7 +219,7 @@ class OnboardingApp {
     }
     
     showFieldError(field, message) {
-        const wrapper = field.closest('.input-wrapper');
+        const wrapper = field.closest('.input-wrapper') || field.closest('.form-group');
         
         // Clear existing error first
         this.clearFieldError(field);
@@ -223,38 +231,17 @@ class OnboardingApp {
         const errorDiv = document.createElement('div');
         errorDiv.className = 'error-message';
         errorDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
-        wrapper.parentNode.appendChild(errorDiv);
-    }
-    
-    // Função para debug do FormData
-    debugFormData(formData, label = 'FormData Debug') {
-        console.log(`\n=== ${label} ===`);
+        wrapper.appendChild(errorDiv);
         
-        // Método 1: Usando for...of (mais confiável)
-        console.log('Usando for...of:');
-        for (let [key, value] of formData.entries()) {
-            console.log(`${key}: ${value}`);
-        }
-        
-        // Método 2: Convertendo para objeto (para visualização melhor)
-        const formDataObj = {};
-        for (let [key, value] of formData.entries()) {
-            formDataObj[key] = value;
-        }
-        console.log('Como objeto:', formDataObj);
-        
-        // Método 3: Verificando se está vazio
-        const isEmpty = [...formData.entries()].length === 0;
-        console.log('FormData está vazio?', isEmpty);
-        
-        console.log('================\n');
-        
-        return formDataObj;
+        // Scroll to error if needed
+        field.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     
     // Comprehensive field validation function
     async validateField(field) {
-        if (this.validationInProgress) return true;
+        if (this.validationInProgress && field.id !== 'document' && field.id !== 'email') {
+            return true;
+        }
         
         let isValid = true;
         let message = '';
@@ -264,7 +251,7 @@ class OnboardingApp {
         // Required field validation
         if (field.hasAttribute('required') && !fieldValue) {
             isValid = false;
-            message = OnboardingConfig.ui.errorMessages.requiredField || 'Este campo é obrigatório';
+            message = OnboardingConfig.ui.errorMessages.requiredField;
         }
         
         // If field is empty and not required, or if basic validation failed, return early
@@ -280,7 +267,7 @@ class OnboardingApp {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(fieldValue)) {
                 isValid = false;
-                message = OnboardingConfig.ui.errorMessages.invalidEmail || 'E-mail inválido';
+                message = OnboardingConfig.ui.errorMessages.invalidEmail;
             } else {
                 // Remote email validation
                 try {
@@ -288,11 +275,12 @@ class OnboardingApp {
                     const emailAvailable = await this.validateEmailRemote(fieldValue);
                     if (!emailAvailable) {
                         isValid = false;
-                        message = OnboardingConfig.ui.errorMessages.emailExists || 'Este e-mail já está cadastrado';
+                        message = OnboardingConfig.ui.errorMessages.emailExists;
                     }
                 } catch (error) {
                     console.error('Erro na validação do email:', error);
-                    // Continue without blocking if remote validation fails
+                    isValid = false;
+                    message = 'Erro ao validar email. Tente novamente.';
                 } finally {
                     this.validationInProgress = false;
                 }
@@ -305,8 +293,8 @@ class OnboardingApp {
             if (!this.validateDocument(fieldValue)) {
                 isValid = false;
                 message = this.personType === 'J' ? 
-                    (OnboardingConfig.ui.errorMessages.invalidCNPJ || 'CNPJ inválido') : 
-                    (OnboardingConfig.ui.errorMessages.invalidCPF || 'CPF inválido');
+                    OnboardingConfig.ui.errorMessages.invalidCNPJ : 
+                    OnboardingConfig.ui.errorMessages.invalidCPF;
             } else {
                 // Remote document validation
                 try {
@@ -315,12 +303,13 @@ class OnboardingApp {
                     if (!docAvailable) {
                         isValid = false;
                         message = this.personType === 'J' ? 
-                            (OnboardingConfig.ui.errorMessages.cnpjExists || 'Este CNPJ já está cadastrado') : 
-                            (OnboardingConfig.ui.errorMessages.cpfExists || 'Este CPF já está cadastrado');
+                            OnboardingConfig.ui.errorMessages.cnpjExists : 
+                            OnboardingConfig.ui.errorMessages.cpfExists;
                     }
                 } catch (error) {
                     console.error('Erro na validação do documento:', error);
-                    // Continue without blocking if remote validation fails
+                    isValid = false;
+                    message = 'Erro ao validar documento. Tente novamente.';
                 } finally {
                     this.validationInProgress = false;
                 }
@@ -329,10 +318,10 @@ class OnboardingApp {
         
         // Password validation
         if (field.id === 'password') {
-            const minLength = OnboardingConfig.validation.minPasswordLength || 8;
+            const minLength = OnboardingConfig.validation.minPasswordLength;
             if (fieldValue.length < minLength) {
                 isValid = false;
-                message = OnboardingConfig.ui.errorMessages.shortPassword || `Senha deve ter no mínimo ${minLength} caracteres`;
+                message = OnboardingConfig.ui.errorMessages.shortPassword;
             }
         }
         
@@ -341,7 +330,7 @@ class OnboardingApp {
             const phoneDigits = fieldValue.replace(/\D/g, '');
             if (phoneDigits.length < 10 || phoneDigits.length > 11) {
                 isValid = false;
-                message = 'Telefone inválido';
+                message = 'Telefone deve ter 10 ou 11 dígitos';
             }
         }
         
@@ -350,7 +339,18 @@ class OnboardingApp {
             const cepDigits = fieldValue.replace(/\D/g, '');
             if (cepDigits.length !== 8) {
                 isValid = false;
-                message = 'CEP inválido';
+                message = 'CEP deve ter 8 dígitos';
+            }
+        }
+        
+        // Name validation
+        if (field.id === 'name') {
+            if (fieldValue.length < 3) {
+                isValid = false;
+                message = 'Nome deve ter pelo menos 3 caracteres';
+            } else if (!/^[a-zA-ZÀ-ÿ\s]+$/.test(fieldValue)) {
+                isValid = false;
+                message = 'Nome deve conter apenas letras e espaços';
             }
         }
         
@@ -427,82 +427,133 @@ class OnboardingApp {
         return true;
     }
     
-    // Validate all fields in a step
+    // Validate all fields in a step - CRITICAL VALIDATION
     async validateStep(stepNumber) {
         const step = document.getElementById(`step${stepNumber}`);
         const requiredFields = step.querySelectorAll('input[required], select[required]');
         let isValid = true;
+        let errors = [];
         
-        // Clear all existing errors first
-        requiredFields.forEach(field => {
-            this.clearFieldError(field);
-        });
+        console.log(`Validando Step ${stepNumber}...`);
         
-        // Validate each field
+        // Validate each field sequentially to avoid race conditions
         for (const field of requiredFields) {
+            console.log(`Validando campo: ${field.id} = "${field.value}"`);
+            
             const fieldValid = await this.validateField(field);
             if (!fieldValid) {
                 isValid = false;
+                errors.push(`${field.id}: inválido`);
             }
+        }
+        
+        // Additional validation for person type selection in step 1
+        if (stepNumber === 1) {
+            const activePersonType = document.querySelector('.person-type-option.active');
+            if (!activePersonType) {
+                isValid = false;
+                errors.push('Tipo de pessoa não selecionado');
+                this.showError('Selecione o tipo de cadastro');
+            }
+        }
+        
+        console.log(`Validação Step ${stepNumber} - Resultado:`, isValid ? 'VÁLIDO' : 'INVÁLIDO');
+        if (!isValid) {
+            console.log('Erros encontrados:', errors);
         }
         
         return isValid;
     }
     
     async validateDocumentRemote(document, personType) {
+        console.log(`=== VALIDAÇÃO REMOTA DOCUMENTO ===`);
+        console.log(`Documento: ${document}`);
+        console.log(`Tipo: ${personType}`);
+        
         try {
             const formData = new FormData();
-            formData.append('documento', document);
+            const cleanDocument = document.replace(/\D/g, '');
+            formData.append('documento', cleanDocument);
             formData.append('tipoPessoa', personType);
             
-            // Debug do FormData antes do envio
-            console.log('=== Validação de Documento ===');
-            this.debugFormData(formData, 'Validação Documento');
+            console.log('FormData enviado:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`${key}: ${value}`);
+            }
             
             const response = await fetch(OnboardingConfig.endpoints.validateDocument, {
                 method: 'POST',
                 body: formData
             });
             
+            console.log('Response status:', response.status);
+            console.log('Response headers:', [...response.headers.entries()]);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
             const result = await response.text();
-            console.log('Resposta validação documento:', result);
-            return result === 'sucesso'; // Returns true if document doesn't exist (can register)
+            console.log('Response text completo:', `"${result}"`);
+            console.log('Response text trimmed:', `"${result.trim()}"`);
+            
+            // INTERPRETAÇÃO CORRETA das respostas:
+            // 'sucesso' = Documento DISPONÍVEL (NÃO existe no sistema) - PODE cadastrar
+            // 'erro' = Documento JÁ CADASTRADO (existe no sistema) - NÃO pode cadastrar
+            
+            if (result.trim() === 'sucesso') {
+                console.log('✅ DOCUMENTO DISPONÍVEL - Pode cadastrar');
+                return true; // Permite cadastro
+            } else if (result.trim() === 'erro') {
+                console.log('❌ DOCUMENTO JÁ CADASTRADO - Bloqueando');
+                return false; // Bloqueia cadastro
+            } else {
+                console.log('⚠️ RESPOSTA INESPERADA:', result);
+                // Se a resposta for inesperada, bloquear por segurança
+                return false;
+            }
+            
         } catch (error) {
-            console.error('Erro ao validar documento:', error);
-            // Return true on error to not block registration due to connectivity issues
-            return true;
+            console.error('❌ ERRO na validação de documento:', error);
+            throw error;
         }
     }
     
     async validateEmailRemote(email) {
+        console.log(`Validando email remotamente: ${email}`);
+        
         try {
             const formData = new FormData();
             formData.append('email', email);
-            
-            // Debug do FormData antes do envio
-            console.log('=== Validação de Email ===');
-            this.debugFormData(formData, 'Validação Email');
             
             const response = await fetch(OnboardingConfig.endpoints.validateEmail, {
                 method: 'POST',
                 body: formData
             });
             
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
             const result = await response.text();
-            console.log('Resposta validação email:', result);
-            return result === 'sucesso'; // Returns true if email doesn't exist (can register)
+            console.log('Resultado validação email:', result);
+            
+            // Return true if email is available (can register)
+            return result.trim() === 'sucesso';
         } catch (error) {
             console.error('Erro ao validar email:', error);
-            // Return true on error to not block registration due to connectivity issues
-            return true;
+            throw error;
         }
     }
     
     async nextStep() {
         // Prevent multiple simultaneous validations
         if (this.validationInProgress) {
+            console.log('Validação já em progresso, aguarde...');
             return;
         }
+        
+        console.log('=== INICIANDO VALIDAÇÃO STEP 1 ===');
         
         // Show loading on continue button while validating
         const continueBtn = document.querySelector('#step1 .btn-primary');
@@ -514,13 +565,16 @@ class OnboardingApp {
         try {
             this.validationInProgress = true;
             
-            // Comprehensive validation of step 1
+            // CRITICAL: Comprehensive validation of step 1
             const isValid = await this.validateStep(1);
             
             if (!isValid) {
+                console.log('❌ VALIDAÇÃO FALHOU - Bloqueando progresso');
                 this.showError(OnboardingConfig.ui.errorMessages?.validationError || 'Por favor, corrija os erros antes de continuar');
                 return;
             }
+            
+            console.log('✅ VALIDAÇÃO PASSOU - Permitindo progresso');
             
             // Save step 1 data
             this.userData = {
@@ -542,8 +596,8 @@ class OnboardingApp {
             this.addTransitionEffect();
             
         } catch (error) {
-            console.error('Erro na validação:', error);
-            this.showError('Erro interno. Tente novamente.');
+            console.error('❌ ERRO CRÍTICO na validação:', error);
+            this.showError('Erro na validação. Tente novamente.');
         } finally {
             // Reset button state
             this.validationInProgress = false;
@@ -596,8 +650,11 @@ class OnboardingApp {
     async finishRegistration() {
         // Prevent multiple simultaneous submissions
         if (this.validationInProgress) {
+            console.log('Validação já em progresso, aguarde...');
             return;
         }
+        
+        console.log('=== INICIANDO VALIDAÇÃO FINAL ===');
         
         // Show loading state
         const submitButton = document.querySelector('#step2 .btn-primary');
@@ -609,13 +666,16 @@ class OnboardingApp {
         try {
             this.validationInProgress = true;
             
-            // Validate step 2
+            // CRITICAL: Validate step 2
             const isValid = await this.validateStep(2);
             
             if (!isValid) {
+                console.log('❌ VALIDAÇÃO STEP 2 FALHOU - Bloqueando cadastro');
                 this.showError('Por favor, corrija os erros antes de finalizar');
                 return;
             }
+            
+            console.log('✅ VALIDAÇÃO STEP 2 PASSOU - Permitindo cadastro');
             
             // Save step 2 data
             this.userData.address = {
@@ -630,6 +690,13 @@ class OnboardingApp {
             
             console.log('Dados completos do usuário:', this.userData);
             
+            // FINAL VALIDATION BEFORE REGISTRATION
+            console.log('=== VALIDAÇÃO FINAL ANTES DO CADASTRO ===');
+            if (!this.userData.name || !this.userData.email || !this.userData.document || 
+                !this.userData.password || !this.userData.phone) {
+                throw new Error('Dados obrigatórios faltando');
+            }
+            
             // Process registration
             await this.processRegistration();
             
@@ -637,7 +704,7 @@ class OnboardingApp {
             this.showSuccessStep();
             
         } catch (error) {
-            console.error('Erro no cadastro:', error);
+            console.error('❌ ERRO CRÍTICO no cadastro:', error);
             this.showError(OnboardingConfig.ui.errorMessages?.registrationError || 'Erro ao finalizar cadastro. Tente novamente.');
         } finally {
             this.validationInProgress = false;
@@ -648,19 +715,21 @@ class OnboardingApp {
     }
     
     async processRegistration() {
+        console.log('=== PROCESSANDO CADASTRO ===');
+        
         try {
-            // Prepare form data according to processa_cadastro.php structure
+            // Prepare form data according to ajax_handler.php structure
             const formData = new FormData();
             
             // Add action identifier for AJAX handler
             formData.append('action', 'register');
             
-            // Add all required fields based on processa_cadastro.php
+            // Add all required fields
             formData.append('tipoPessoa', this.personType);
             formData.append('nomeAfiliado', this.userData.name);
             formData.append('razaoSocial', this.personType === 'J' ? this.userData.name : '');
-            formData.append('dataNascimento', ''); // You might want to add this field
-            formData.append('genero', ''); // You might want to add this field
+            formData.append('dataNascimento', '');
+            formData.append('genero', '');
             
             if (this.personType === 'F') {
                 formData.append('CPF', this.userData.document.replace(/\D/g, ''));
@@ -676,7 +745,7 @@ class OnboardingApp {
             
             formData.append('email', this.userData.email);
             formData.append('senha', this.userData.password);
-            formData.append('resenha', this.userData.password); // Confirm password
+            formData.append('resenha', this.userData.password);
             formData.append('telefone', '');
             formData.append('celular', this.userData.phone.replace(/\D/g, ''));
             formData.append('cep', this.userData.address.cep.replace(/\D/g, ''));
@@ -687,52 +756,47 @@ class OnboardingApp {
             formData.append('cidade', this.userData.address.city);
             formData.append('estado', this.userData.address.state);
             
-            // Debug do FormData completo antes do envio
-            console.log('=== CADASTRO FINAL ===');
-            const formDataDebug = this.debugFormData(formData, 'Cadastro Final');
+            console.log('Dados do FormData:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`${key}: ${value}`);
+            }
             
-            // Verificação adicional se os dados estão sendo adicionados corretamente
-            console.log('Verificação manual dos dados:');
-            console.log('- tipoPessoa:', this.personType);
-            console.log('- nomeAfiliado:', this.userData.name);
-            console.log('- email:', this.userData.email);
-            console.log('- documento:', this.userData.document);
+            // Submit to ajax_handler.php for JSON response
+            const response = await fetch(OnboardingConfig.endpoints.register, {
+                method: 'POST',
+                body: formData
+            });
             
-// Submit to ajax_handler.php for JSON response
-const response = await fetch(OnboardingConfig.endpoints.register, {
-    method: 'POST',
-    body: formData
-});
-
-// Clone da resposta antes de tentar fazer o parse
-const responseClone = response.clone();
-
-console.log('Response status:', response.status);
-console.log('Response headers:', [...response.headers.entries()]);
-
-// Parse JSON response
-let result;
-try {
-    result = await response.json();
-    console.log('Response JSON:', result);
-} catch (parseError) {
-    console.error('Erro ao fazer parse do JSON. Resposta como texto:');
-    const textResponse = await responseClone.text(); // ✅ Usa o clone aqui
-    console.log('Response text:', textResponse);
-    throw new Error('Resposta inválida do servidor');
-}
+            console.log('Response status:', response.status);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            // Parse JSON response
+            let result;
+            try {
+                const responseText = await response.text();
+                console.log('Response text:', responseText);
+                result = JSON.parse(responseText);
+                console.log('Response JSON:', result);
+            } catch (parseError) {
+                console.error('Erro ao fazer parse do JSON:', parseError);
+                throw new Error('Resposta inválida do servidor');
+            }
             
             if (result.status === 'success') {
-                // Store success data
+                console.log('✅ CADASTRO REALIZADO COM SUCESSO');
                 this.registrationSuccess = true;
                 this.successRedirect = result.redirect;
                 return true;
             } else {
+                console.log('❌ CADASTRO FALHOU:', result.message);
                 throw new Error(result.message || 'Erro no cadastro');
             }
             
         } catch (error) {
-            console.error('Erro no cadastro:', error);
+            console.error('❌ ERRO no processamento do cadastro:', error);
             throw error;
         }
     }
@@ -760,11 +824,13 @@ try {
             registeredEmail.textContent = this.userData.email;
         }
         
-        // Set app link - if there was a redirect URL from registration, use it
-        const appLink = document.getElementById('appLink');
-        if (appLink) {
-            appLink.href = this.successRedirect || 'sucesso.php';
-        }
+        // Set app link
+        const appLinks = document.querySelectorAll('a[href*="appvitatop"]');
+        appLinks.forEach(link => {
+            if (this.successRedirect) {
+                link.href = this.successRedirect;
+            }
+        });
         
         // Add confetti effect
         this.showConfetti();
@@ -999,6 +1065,11 @@ style.textContent = `
         box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
     }
     
+    .form-group.error select {
+        border-color: #ef4444 !important;
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+    }
+    
     .error-message {
         color: #ef4444;
         font-size: 0.875rem;
@@ -1082,50 +1153,6 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Enhanced configuration fallback
-window.OnboardingConfig = window.OnboardingConfig || {
-    endpoints: {
-        viaCep: 'https://viacep.com.br/ws/',
-        validateDocument: './ajax/validar_documento.php',
-        validateEmail: './ajax/validar_email.php',
-        register: './ajax/processa_cadastro.php'
-    },
-    validation: {
-        documentTypes: {
-            pf: 'CPF',
-            pj: 'CNPJ'
-        },
-        minPasswordLength: 8
-    },
-    masks: {
-        cpf: '000.000.000-00',
-        cnpj: '00.000.000/0000-00'
-    },
-    ui: {
-        errorMessages: {
-            requiredField: 'Este campo é obrigatório',
-            invalidEmail: 'E-mail inválido',
-            emailExists: 'Este e-mail já está cadastrado',
-            invalidCPF: 'CPF inválido',
-            invalidCNPJ: 'CNPJ inválido',
-            cpfExists: 'Este CPF já está cadastrado',
-            cnpjExists: 'Este CNPJ já está cadastrado',
-            shortPassword: 'Senha deve ter no mínimo 8 caracteres',
-            validationError: 'Por favor, corrija os erros antes de continuar',
-            registrationError: 'Erro ao finalizar cadastro. Tente novamente.',
-            cepNotFound: 'CEP não encontrado',
-            cepError: 'Erro ao buscar CEP'
-        },
-        successMessages: {
-            addressFound: 'Endereço encontrado!'
-        },
-        loadingMessages: {
-            validating: 'Validando...',
-            registering: 'Finalizando cadastro...'
-        }
-    }
-};
-
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     try {
@@ -1135,8 +1162,3 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Error initializing onboarding app:', error);
     }
 });
-
-// Export for potential module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = OnboardingApp;
-}

@@ -2,31 +2,66 @@
 include("funcoes/requisicoes.php");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Verifica se 'documento' e 'tipoPessoa' estão definidos e não estão vazios
     if (isset($_POST['documento']) && isset($_POST['tipoPessoa'])) {
-        $documento = $_POST['documento'];
-        $tipoPessoa = $_POST['tipoPessoa'];
+        $documento = trim($_POST['documento']);
+        $tipoPessoa = trim($_POST['tipoPessoa']);
+
+        if (empty($documento)) {
+            header("HTTP/1.1 400 Bad Request");
+            echo 'erro1';
+            exit();
+        }
+
+        if (empty($tipoPessoa) || !in_array($tipoPessoa, ['F', 'J'])) {
+            header("HTTP/1.1 400 Bad Request");
+            echo 'erro2';
+            exit();
+        }
+
+        $documentoLimpo = preg_replace('/\D/', '', $documento);
+
+        if ($tipoPessoa === 'F' && strlen($documentoLimpo) !== 11) {
+            echo 'erro3';
+            exit();
+        }
+
+        if ($tipoPessoa === 'J' && strlen($documentoLimpo) !== 14) {
+            echo 'erro4';
+            exit();
+        }
 
         $formData = [
             'tipo' => $tipoPessoa,
-            'documento' => $documento,
+            'documento' => $documentoLimpo,
         ];
 
-        $response = verificarCpf($location, $rest_key, $formData);
+        try {
+            $response = verificarCpf($location, $rest_key, $formData);
 
-        if ($response['data']['status'] !== 'success') {
-            echo 'erro';
-        } else {
-            // Exibe mensagem de sucesso
-            echo 'sucesso';
+            if (!isset($response['data']['message'])) {
+                echo 'erro6';
+                exit();
+            }
+
+            $mensagem = strtolower($response['data']['message']);
+            if (strpos($mensagem, 'já se encontra cadastrado') !== false) {
+                echo 'erro5';
+            } elseif (strpos($mensagem, 'pode ser cadastrado') !== false) {
+                echo 'sucesso';
+            } else {
+                echo 'erro6';
+            }
+        } catch (Exception $e) {
+            echo 'erro6';
         }
     } else {
-        // Responde com erro 403 se 'documento' ou 'tipoPessoa' não estiverem definidos ou estiverem vazios
-        header("HTTP/1.1 403 Forbidden");
+        header("HTTP/1.1 400 Bad Request");
+        echo 'erro';
         exit();
     }
 } else {
-    // Responde com erro 403 se o método não for POST
-    header("HTTP/1.1 403 Forbidden");
+    header("HTTP/1.1 405 Method Not Allowed");
+    echo 'erro';
     exit();
 }
+?>
