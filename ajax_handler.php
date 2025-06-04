@@ -194,6 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Prepare form data
         $formData = [
             'codigoindicador' => $_SESSION['codigo_indicador'] ?? '',
+            'idPreCadastro' => $_SESSION['idPreCadastro'] ?? '',
             'tipoPessoa' => $_POST['tipoPessoa'],
             'nomeAfiliado' => trim($_POST['nomeAfiliado']),
             'razaoSocial' => trim($_POST['razaoSocial'] ?? ''),

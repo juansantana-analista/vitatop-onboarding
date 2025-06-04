@@ -764,7 +764,6 @@ class OnboardingApp {
             }
             
             if (result.status === 'success') {
-                
                 this.registrationSuccess = true;
                 this.successRedirect = result.redirect;
                 return true;

@@ -67,14 +67,14 @@ if (isset($_GET['codigoindicador'])) {
                     </div>
                 </div>
 
-<div class="form-group">
-    <label for="name">Nome completo *</label>
-    <div class="input-wrapper">
-        <i class="fas fa-user input-icon"></i>
-        <input type="text" id="name" name="name" placeholder="Digite seu nome completo" 
-               value="<?php echo isset($_SESSION['nomePreCadastro']) ? htmlspecialchars($_SESSION['nomePreCadastro']) : ''; ?>" required>
-    </div>
-</div>
+                <div class="form-group">
+                    <label for="name">Nome completo *</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-user input-icon"></i>
+                        <input type="text" id="name" name="name" placeholder="Digite seu nome completo" 
+                            value="<?php echo isset($_SESSION['nomePreCadastro']) ? htmlspecialchars($_SESSION['nomePreCadastro']) : ''; ?>" required>
+                    </div>
+                </div>
 
                 <div class="form-group">
                     <label for="document" id="documentLabel">CPF *</label>
