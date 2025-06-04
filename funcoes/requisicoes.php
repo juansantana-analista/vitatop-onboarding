@@ -62,7 +62,65 @@ function validaIndicador($location, $rest_key, $codigo_indicador)
 }
 //Fim da Função que valida o Indicador
 
+//Inicio da Função que busca o Pré Cadastro
+function buscarPreCadastro($location, $rest_key, $preCadastroId)
+{
 
+    // Dados a serem enviados no corpo da requisição
+    $postData = [
+        'class' => 'PessoaRestService',
+        'method' => 'BuscarPreCadastro',
+        'preCadastroId' => $preCadastroId,
+    ];
+
+
+    // Inicializa o cURL para validação do indicador
+    $ch = curl_init($location);
+
+    // Define as opções do cURL
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Authorization: Basic ' . $rest_key
+    ]);
+
+    // Executa a requisição
+    $response = curl_exec($ch);
+
+    // Verifica se houve erros
+    if ($response === false) {
+        header("HTTP/1.1 403 Forbidden");
+        exit();
+    } else {
+        // Decodifica a resposta JSON
+        $data = json_decode($response, true);
+
+        // Verifica o status da resposta
+        if (isset($data['status']) && $data['data']["status"] === 'success') {
+            // Pegar os dados do indicador retornados
+            $resultado = $data["data"]["data"];
+            $nomePreCadastro = $resultado["nome"];
+            $emailPreCadastro = $resultado["email"];
+            $celularPreCadastro = $resultado["celular"];
+            $codigoIndicador = $resultado["codigo_indicador"];
+
+            // Define uma variável de sessão
+            $_SESSION['nomePreCadastro'] = $nomePreCadastro;
+            $_SESSION['emailPreCadastro'] = $emailPreCadastro;
+            $_SESSION['celularPreCadastro'] = $celularPreCadastro;
+            $_SESSION['codigo_indicador'] = $codigoIndicador;
+        } else {
+            header("location: indisponivel.php");
+            exit();
+        }
+    }
+
+    // Fecha a sessão cURL para validação do indicador
+    curl_close($ch);
+}
+//Fim da Função que busca o Pré Cadastro
 
 //Inicio da Função que busca Pessoa
 function buscarPessoa($location, $rest_key, $idPessoa)
