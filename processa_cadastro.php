@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $formData = [
         'codigoindicador' => $_SESSION['codigo_indicador'],
+        'idPreCadastro' => $_SESSION['idPreCadastro'] ?? '',
         'tipoPessoa' => $_POST['tipoPessoa'],
         'nomeAfiliado' => $_POST['nomeAfiliado'],
         'razaoSocial' => $_POST['razaoSocial'],

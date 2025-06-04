@@ -101,12 +101,14 @@ function buscarPreCadastro($location, $rest_key, $preCadastroId)
         if (isset($data['status']) && $data['data']["status"] === 'success') {
             // Pegar os dados do indicador retornados
             $resultado = $data["data"]["data"];
+            $idPreCadastro = $resultado["id_pre_cadastro"];
             $nomePreCadastro = $resultado["nome"];
             $emailPreCadastro = $resultado["email"];
             $celularPreCadastro = $resultado["celular"];
             $codigoIndicador = $resultado["codigo_indicador"];
 
             // Define uma variável de sessão
+            $_SESSION['idPreCadastro'] = $idPreCadastro;
             $_SESSION['nomePreCadastro'] = $nomePreCadastro;
             $_SESSION['emailPreCadastro'] = $emailPreCadastro;
             $_SESSION['celularPreCadastro'] = $celularPreCadastro;
