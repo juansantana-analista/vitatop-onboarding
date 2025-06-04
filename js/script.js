@@ -434,11 +434,8 @@ class OnboardingApp {
         let isValid = true;
         let errors = [];
         
-        console.log(`Validando Step ${stepNumber}...`);
-        
         // Validate each field sequentially to avoid race conditions
         for (const field of requiredFields) {
-            console.log(`Validando campo: ${field.id} = "${field.value}"`);
             
             const fieldValid = await this.validateField(field);
             if (!fieldValid) {
@@ -457,7 +454,6 @@ class OnboardingApp {
             }
         }
         
-        console.log(`Validação Step ${stepNumber} - Resultado:`, isValid ? 'VÁLIDO' : 'INVÁLIDO');
         if (!isValid) {
             console.log('Erros encontrados:', errors);
         }
@@ -466,9 +462,6 @@ class OnboardingApp {
     }
     
     async validateDocumentRemote(document, personType) {
-        console.log(`=== VALIDAÇÃO REMOTA DOCUMENTO ===`);
-        console.log(`Documento: ${document}`);
-        console.log(`Tipo: ${personType}`);
         
         try {
             const formData = new FormData();
@@ -476,7 +469,6 @@ class OnboardingApp {
             formData.append('documento', cleanDocument);
             formData.append('tipoPessoa', personType);
             
-            console.log('FormData enviado:');
             for (let [key, value] of formData.entries()) {
                 console.log(`${key}: ${value}`);
             }
@@ -486,29 +478,21 @@ class OnboardingApp {
                 body: formData
             });
             
-            console.log('Response status:', response.status);
-            console.log('Response headers:', [...response.headers.entries()]);
-            
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
             const result = await response.text();
-            console.log('Response text completo:', `"${result}"`);
-            console.log('Response text trimmed:', `"${result.trim()}"`);
             
             // INTERPRETAÇÃO CORRETA das respostas:
             // 'sucesso' = Documento DISPONÍVEL (NÃO existe no sistema) - PODE cadastrar
             // 'erro' = Documento JÁ CADASTRADO (existe no sistema) - NÃO pode cadastrar
             
             if (result.trim() === 'sucesso') {
-                console.log('✅ DOCUMENTO DISPONÍVEL - Pode cadastrar');
                 return true; // Permite cadastro
             } else if (result.trim() === 'erro') {
-                console.log('❌ DOCUMENTO JÁ CADASTRADO - Bloqueando');
                 return false; // Bloqueia cadastro
             } else {
-                console.log('⚠️ RESPOSTA INESPERADA:', result);
                 // Se a resposta for inesperada, bloquear por segurança
                 return false;
             }
@@ -520,7 +504,6 @@ class OnboardingApp {
     }
     
     async validateEmailRemote(email) {
-        console.log(`Validando email remotamente: ${email}`);
         
         try {
             const formData = new FormData();
@@ -536,7 +519,6 @@ class OnboardingApp {
             }
             
             const result = await response.text();
-            console.log('Resultado validação email:', result);
             
             // Return true if email is available (can register)
             return result.trim() === 'sucesso';
@@ -549,11 +531,9 @@ class OnboardingApp {
     async nextStep() {
         // Prevent multiple simultaneous validations
         if (this.validationInProgress) {
-            console.log('Validação já em progresso, aguarde...');
             return;
         }
         
-        console.log('=== INICIANDO VALIDAÇÃO STEP 1 ===');
         
         // Show loading on continue button while validating
         const continueBtn = document.querySelector('#step1 .btn-primary');
@@ -569,12 +549,12 @@ class OnboardingApp {
             const isValid = await this.validateStep(1);
             
             if (!isValid) {
-                console.log('❌ VALIDAÇÃO FALHOU - Bloqueando progresso');
+                
                 this.showError(OnboardingConfig.ui.errorMessages?.validationError || 'Por favor, corrija os erros antes de continuar');
                 return;
             }
             
-            console.log('✅ VALIDAÇÃO PASSOU - Permitindo progresso');
+    
             
             // Save step 1 data
             this.userData = {
@@ -586,7 +566,7 @@ class OnboardingApp {
                 password: document.getElementById('password').value
             };
             
-            console.log('Dados salvos do Step 1:', this.userData);
+            
             
             this.currentStep = 2;
             this.showStep(2);
@@ -650,11 +630,11 @@ class OnboardingApp {
     async finishRegistration() {
         // Prevent multiple simultaneous submissions
         if (this.validationInProgress) {
-            console.log('Validação já em progresso, aguarde...');
+            
             return;
         }
         
-        console.log('=== INICIANDO VALIDAÇÃO FINAL ===');
+        
         
         // Show loading state
         const submitButton = document.querySelector('#step2 .btn-primary');
@@ -670,12 +650,12 @@ class OnboardingApp {
             const isValid = await this.validateStep(2);
             
             if (!isValid) {
-                console.log('❌ VALIDAÇÃO STEP 2 FALHOU - Bloqueando cadastro');
+                
                 this.showError('Por favor, corrija os erros antes de finalizar');
                 return;
             }
             
-            console.log('✅ VALIDAÇÃO STEP 2 PASSOU - Permitindo cadastro');
+            
             
             // Save step 2 data
             this.userData.address = {
@@ -688,10 +668,10 @@ class OnboardingApp {
                 state: document.getElementById('state').value.trim()
             };
             
-            console.log('Dados completos do usuário:', this.userData);
+            
             
             // FINAL VALIDATION BEFORE REGISTRATION
-            console.log('=== VALIDAÇÃO FINAL ANTES DO CADASTRO ===');
+            
             if (!this.userData.name || !this.userData.email || !this.userData.document || 
                 !this.userData.password || !this.userData.phone) {
                 throw new Error('Dados obrigatórios faltando');
@@ -715,7 +695,7 @@ class OnboardingApp {
     }
     
     async processRegistration() {
-        console.log('=== PROCESSANDO CADASTRO ===');
+        
         
         try {
             // Prepare form data according to ajax_handler.php structure
@@ -777,16 +757,14 @@ class OnboardingApp {
             let result;
             try {
                 const responseText = await response.text();
-                console.log('Response text:', responseText);
                 result = JSON.parse(responseText);
-                console.log('Response JSON:', result);
             } catch (parseError) {
                 console.error('Erro ao fazer parse do JSON:', parseError);
                 throw new Error('Resposta inválida do servidor');
             }
             
             if (result.status === 'success') {
-                console.log('✅ CADASTRO REALIZADO COM SUCESSO');
+                
                 this.registrationSuccess = true;
                 this.successRedirect = result.redirect;
                 return true;
