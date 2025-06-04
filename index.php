@@ -83,23 +83,23 @@ if (isset($_GET['codigoindicador'])) {
                         <input type="text" id="document" name="document" placeholder="000.000.000-00" required>
                     </div>
                 </div>
-<div class="form-group">
-    <label for="email">E-mail *</label>
-    <div class="input-wrapper">
-        <i class="fas fa-envelope input-icon"></i>
-        <input type="email" id="email" name="email" placeholder="seu@email.com" 
-               value="<?php echo isset($_SESSION['emailPreCadastro']) ? htmlspecialchars($_SESSION['emailPreCadastro']) : ''; ?>" required>
-    </div>
-</div>
+                <div class="form-group">
+                    <label for="email">E-mail *</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-envelope input-icon"></i>
+                        <input type="email" id="email" name="email" placeholder="seu@email.com" 
+                            value="<?php echo isset($_SESSION['emailPreCadastro']) ? htmlspecialchars($_SESSION['emailPreCadastro']) : ''; ?>" required>
+                    </div>
+                </div>
 
-<div class="form-group">
-    <label for="phone">Celular *</label>
-    <div class="input-wrapper">
-        <i class="fas fa-phone input-icon"></i>
-        <input type="tel" id="phone" name="phone" placeholder="(00) 00000-0000" 
-               value="<?php echo isset($_SESSION['celularPreCadastro']) ? htmlspecialchars($_SESSION['celularPreCadastro']) : ''; ?>" required>
-    </div>
-</div>
+                <div class="form-group">
+                    <label for="phone">Celular *</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-phone input-icon"></i>
+                        <input type="tel" id="phone" name="phone" placeholder="(00) 00000-0000" 
+                            value="<?php echo isset($_SESSION['celularPreCadastro']) ? htmlspecialchars($_SESSION['celularPreCadastro']) : ''; ?>" required>
+                    </div>
+                </div>
 
                 <div class="form-group">
                     <label for="password">Senha *</label>

@@ -47,8 +47,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['pessoaId'] = $response['data']['data']['pessoa_id'];
             if($_SESSION['pessoaId']) {
                 // Redirecionar para a URL
+                $_SESSION = [];
+                session_destroy();
                 header('Location: checkout.php');
             } else {
+                $_SESSION = [];
+                session_destroy();
                 var_dump($response);
             }
             exit();
