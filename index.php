@@ -260,6 +260,11 @@ if (isset($_GET['codigoindicador'])) {
                             <span>Oferta por tempo limitado</span>
                         </div>
                     </div>
+                    
+                    <div class="combo-instruction">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Clique no combo para selecionar. Clique novamente para desmarcar.</span>
+                    </div>
                 </div>
 
                 <div class="combos-container">

@@ -631,8 +631,8 @@ class OnboardingApp {
     
     createComboCard(combo, index) {
         const discount = combo.desconto || 0;
-        const originalPrice = combo.preco_lojavirtual || combo.preco_lojavirtual;
-        const currentPrice = combo.preco_lojavirtual;
+        const originalPrice = combo.preco_original || combo.preco;
+        const currentPrice = combo.preco;
         const installments = Math.floor(currentPrice / 10); // Exemplo de parcelas
         
         return `
@@ -710,30 +710,50 @@ class OnboardingApp {
     }
     
     selectCombo(index) {
-        // Remove selection from all combos
-        document.querySelectorAll('.combo-card').forEach(card => {
-            card.classList.remove('selected');
-        });
+        const clickedCard = document.querySelector(`[data-combo-id="${this.combos[index].id}"]`);
         
-        // Add selection to clicked combo
-        const selectedCard = document.querySelector(`[data-combo-id="${this.combos[index].id}"]`);
-        if (selectedCard) {
-            selectedCard.classList.add('selected');
+        // Check if this combo is already selected
+        if (this.selectedCombo && this.selectedCombo.id === this.combos[index].id) {
+            // Deselect the combo
+            this.selectedCombo = null;
+            clickedCard.classList.remove('selected');
+            
+            // Add deselection animation
+            clickedCard.style.transform = 'scale(1.02)';
+            setTimeout(() => {
+                clickedCard.style.transform = '';
+            }, 150);
+            
+            // Show success message for deselection
+            this.showSuccess('Combo desmarcado. Você pode continuar sem combo ou selecionar outro.');
+        } else {
+            // Remove selection from all combos
+            document.querySelectorAll('.combo-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Add selection to clicked combo
+            if (clickedCard) {
+                clickedCard.classList.add('selected');
+            }
+            
+            // Store selected combo
+            this.selectedCombo = this.combos[index];
+            
+            // Add selection animation
+            if (clickedCard) {
+                clickedCard.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    clickedCard.style.transform = '';
+                }, 150);
+            }
+            
+            // Show success message for selection
+            this.showSuccess(`Combo "${this.combos[index].nome}" selecionado!`);
         }
-        
-        // Store selected combo
-        this.selectedCombo = this.combos[index];
         
         // Update UI
         this.updateComboSelection();
-        
-        // Add selection animation
-        if (selectedCard) {
-            selectedCard.style.transform = 'scale(0.98)';
-            setTimeout(() => {
-                selectedCard.style.transform = '';
-            }, 150);
-        }
     }
     
     updateComboSelection() {

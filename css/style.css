@@ -421,6 +421,24 @@ body {
     font-size: 16px;
 }
 
+.combo-instruction {
+    margin-top: 16px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #78350f;
+    font-weight: 500;
+}
+
+.combo-instruction i {
+    color: #f59e0b;
+    font-size: 16px;
+}
+
 .combos-container {
     margin-bottom: 24px;
 }
@@ -437,11 +455,7 @@ body {
     display: block;
 }
 
-/* Swiper Styles */
-.combos-swiper {
-    padding: 20px 0 40px 0;
-}
-
+/* Combo card styles */
 .combo-card {
     background: white;
     border: 2px solid var(--border);
@@ -465,6 +479,32 @@ body {
     background: linear-gradient(135deg, #7cbe4210 0%, #00591f10 100%);
     transform: translateY(-4px);
     box-shadow: var(--shadow);
+    position: relative;
+}
+
+.combo-card.selected::before {
+    content: '✓ Selecionado - Clique para desmarcar';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    z-index: 2;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
 }
 
 .combo-badge {
