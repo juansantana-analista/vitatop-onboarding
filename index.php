@@ -23,6 +23,7 @@ if (isset($_GET['codigoindicador'])) {
     <link rel="stylesheet" href="css/style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.css" rel="stylesheet">
 </head>
 <body>
     <div class="container">
@@ -32,7 +33,7 @@ if (isset($_GET['codigoindicador'])) {
                 <div class="progress-fill" id="progressFill"></div>
             </div>
             <div class="progress-text">
-                <span id="progressText">Etapa 1 de 2</span>
+                <span id="progressText">Etapa 1 de 4</span>
             </div>
         </div>
 
@@ -221,12 +222,198 @@ if (isset($_GET['codigoindicador'])) {
                         <i class="fas fa-arrow-left"></i>
                         Voltar
                     </button>
-                    <button type="button" class="btn-primary" onclick="finishRegistration()">
-                        Finalizar cadastro
-                        <i class="fas fa-check"></i>
+                    <button type="button" class="btn-primary" onclick="nextStep()">
+                        Continuar
+                        <i class="fas fa-arrow-right"></i>
                     </button>
                 </div>
             </form>
+        </div>
+
+        <!-- Step 3: Combo Selection -->
+        <div class="step" id="step3">
+            <div class="step-header">
+                <h2>🎯 Turbine seu sucesso!</h2>
+                <p>Escolha um combo e acelere seus resultados desde o primeiro dia</p>
+            </div>
+
+            <div class="pnl-container">
+                <div class="pnl-message">
+                    <h3>💰 Esta é sua chance de MULTIPLICAR seus ganhos!</h3>
+                    <p>Nossos combos foram desenvolvidos especialmente para quem quer <strong>resultados extraordinários</strong>. Mais de <span class="highlight">10.000 pessoas</span> já transformaram suas vidas financeiras com essas estratégias!</p>
+                    
+                    <div class="benefits-grid">
+                        <div class="benefit-item">
+                            <i class="fas fa-rocket"></i>
+                            <span>Acelere seus resultados</span>
+                        </div>
+                        <div class="benefit-item">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Potencial ilimitado</span>
+                        </div>
+                        <div class="benefit-item">
+                            <i class="fas fa-star"></i>
+                            <span>Estratégias comprovadas</span>
+                        </div>
+                        <div class="benefit-item">
+                            <i class="fas fa-clock"></i>
+                            <span>Oferta por tempo limitado</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="combos-container">
+                    <div class="combos-loading" id="combosLoading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Carregando combos especiais...</span>
+                    </div>
+                    
+                    <div class="swiper combos-swiper" id="combosSwiper" style="display: none;">
+                        <div class="swiper-wrapper" id="combosWrapper">
+                            <!-- Combos will be loaded here -->
+                        </div>
+                        <div class="swiper-pagination"></div>
+                        <div class="swiper-button-next"></div>
+                        <div class="swiper-button-prev"></div>
+                    </div>
+
+                    <div class="no-combos" id="noCombos" style="display: none;">
+                        <i class="fas fa-box-open"></i>
+                        <p>Nenhum combo disponível no momento</p>
+                    </div>
+                </div>
+
+                <div class="selected-combo" id="selectedCombo" style="display: none;">
+                    <h4>✅ Combo Selecionado:</h4>
+                    <div class="combo-summary">
+                        <span class="combo-name" id="selectedComboName"></span>
+                        <span class="combo-price" id="selectedComboPrice"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="prevStep()">
+                    <i class="fas fa-arrow-left"></i>
+                    Voltar
+                </button>
+                <button type="button" class="btn-primary" onclick="nextStep()" id="continueWithoutCombo">
+                    Continuar sem combo
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+                <button type="button" class="btn-primary btn-combo" onclick="nextStep()" id="continueWithCombo" style="display: none;">
+                    Finalizar com combo
+                    <i class="fas fa-check"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 4: Payment (only if combo selected) -->
+        <div class="step" id="step4">
+            <div class="step-header">
+                <h2>💳 Finalizar Pagamento</h2>
+                <p>Escolha a forma de pagamento para seu combo</p>
+            </div>
+
+            <div class="payment-container">
+                <div class="combo-summary-payment">
+                    <h4>Resumo do Pedido:</h4>
+                    <div class="combo-details">
+                        <span class="combo-name-payment" id="comboNamePayment"></span>
+                        <span class="combo-price-payment" id="comboPricePayment"></span>
+                    </div>
+                </div>
+
+                <div class="payment-methods">
+                    <h4>Forma de Pagamento:</h4>
+                    
+                    <!-- PIX -->
+                    <div class="payment-method" data-method="pix">
+                        <div class="payment-header">
+                            <i class="fas fa-qrcode"></i>
+                            <div class="payment-info">
+                                <span class="payment-name">PIX</span>
+                                <span class="payment-desc">Pagamento instantâneo</span>
+                            </div>
+                            <div class="payment-badge">5% OFF</div>
+                        </div>
+                    </div>
+
+                    <!-- Cartão -->
+                    <div class="payment-method" data-method="card">
+                        <div class="payment-header">
+                            <i class="fas fa-credit-card"></i>
+                            <div class="payment-info">
+                                <span class="payment-name">Cartão de Crédito</span>
+                                <span class="payment-desc">Parcelamento em até 12x</span>
+                            </div>
+                        </div>
+                        <div class="payment-details" id="cardDetails" style="display: none;">
+                            <div class="form-group">
+                                <label>Número do Cartão *</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-credit-card input-icon"></i>
+                                    <input type="text" id="cardNumber" placeholder="0000 0000 0000 0000" maxlength="19">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Nome no Cartão *</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-user input-icon"></i>
+                                    <input type="text" id="cardName" placeholder="Nome como está no cartão">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Validade *</label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-calendar input-icon"></i>
+                                        <input type="text" id="cardExpiry" placeholder="MM/AA" maxlength="5">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>CVV *</label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-lock input-icon"></i>
+                                        <input type="text" id="cardCVV" placeholder="000" maxlength="4">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Parcelas</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-list input-icon"></i>
+                                    <select id="installments">
+                                        <option value="1">1x sem juros</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Boleto -->
+                    <div class="payment-method" data-method="boleto">
+                        <div class="payment-header">
+                            <i class="fas fa-barcode"></i>
+                            <div class="payment-info">
+                                <span class="payment-name">Boleto Bancário</span>
+                                <span class="payment-desc">Vencimento em 3 dias úteis</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="prevStep()">
+                    <i class="fas fa-arrow-left"></i>
+                    Voltar
+                </button>
+                <button type="button" class="btn-primary" onclick="processPayment()" id="paymentButton">
+                    <i class="fas fa-lock"></i>
+                    Finalizar Pagamento
+                </button>
+            </div>
         </div>
 
         <!-- Success Step -->
@@ -239,7 +426,7 @@ if (isset($_GET['codigoindicador'])) {
             
             <div class="success-content">
                 <h2>Bem-vindo à VitaTop!</h2>
-                <p>Seu cadastro foi realizado com sucesso</p>
+                <p id="successMessage">Seu cadastro foi realizado com sucesso</p>
                 <div class="success-details">
                     <div class="success-item">
                         <i class="fas fa-envelope"></i>
@@ -248,6 +435,10 @@ if (isset($_GET['codigoindicador'])) {
                     <div class="success-item">
                         <i class="fas fa-rocket"></i>
                         <span>Sua jornada como distribuidor começa agora!</span>
+                    </div>
+                    <div class="success-item" id="paymentSuccessItem" style="display: none;">
+                        <i class="fas fa-credit-card"></i>
+                        <span>Pagamento processado com sucesso!</span>
                     </div>
                 </div>
                 
@@ -265,6 +456,7 @@ if (isset($_GET['codigoindicador'])) {
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.js"></script>
     <script src="js/config.js"></script>
     <script src="js/script.js"></script>
 </body>

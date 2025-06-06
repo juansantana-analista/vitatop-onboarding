@@ -241,13 +241,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     echo json_encode([
                         'status' => 'success',
-                        'redirect' => 'checkout.php',
-                        'message' => 'Cadastro realizado com sucesso!'
+                        'redirect' => 'payment',
+                        'message' => 'Cadastro realizado com sucesso! Redirecionando para pagamento...'
                     ]);
                 } else {
                     echo json_encode([
                         'status' => 'success',
-                        'redirect' => 'https://appvitatop.tecskill.com.br/',
+                        'redirect' => 'success',
                         'message' => 'Cadastro realizado com sucesso!'
                     ]);
                 }
@@ -267,6 +267,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode([
                 'status' => 'error',
                 'message' => 'Erro interno do servidor. Tente novamente.'
+            ]);
+        }
+    } 
+    // Check if this is a payment processing request
+    else if (isset($_POST['action']) && $_POST['action'] === 'process_payment') {
+        
+        // Validate required payment fields
+        $requiredPaymentFields = ['paymentMethod', 'comboId'];
+        
+        $fieldErrors = validateRequiredFields($_POST, $requiredPaymentFields);
+        if (!empty($fieldErrors)) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Dados de pagamento incompletos'
+            ]);
+            exit;
+        }
+        
+        // Validate payment method
+        $validMethods = ['pix', 'card', 'boleto'];
+        if (!in_array($_POST['paymentMethod'], $validMethods)) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Método de pagamento inválido'
+            ]);
+            exit;
+        }
+        
+        // Additional validation for card payments
+        if ($_POST['paymentMethod'] === 'card') {
+            $requiredCardFields = ['cardNumber', 'cardName', 'cardExpiry', 'cardCVV'];
+            
+            foreach ($requiredCardFields as $field) {
+                if (!isset($_POST[$field]) || empty(trim($_POST[$field]))) {
+                    echo json_encode([
+                        'status' => 'error',
+                        'message' => 'Dados do cartão incompletos'
+                    ]);
+                    exit;
+                }
+            }
+        }
+        
+        // Prepare payment data
+        $paymentData = [
+            'pessoaId' => $_SESSION['pessoaId'] ?? null,
+            'comboId' => $_POST['comboId'],
+            'paymentMethod' => $_POST['paymentMethod'],
+            'valor' => $_POST['valor'] ?? 0
+        ];
+        
+        // Add card data if needed
+        if ($_POST['paymentMethod'] === 'card') {
+            $paymentData['cardData'] = [
+                'number' => preg_replace('/\D/', '', $_POST['cardNumber']),
+                'name' => trim($_POST['cardName']),
+                'expiry' => $_POST['cardExpiry'],
+                'cvv' => $_POST['cardCVV'],
+                'installments' => $_POST['installments'] ?? 1
+            ];
+        }
+        
+        try {
+            $response = processarPagamento($location, $rest_key, $paymentData);
+            
+            if ($response['status'] === 'success') {
+                echo json_encode([
+                    'status' => 'success',
+                    'message' => 'Pagamento processado com sucesso!',
+                    'data' => $response['data'] ?? []
+                ]);
+            } else {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => $response['message'] ?? 'Erro ao processar pagamento'
+                ]);
+            }
+        } catch (Exception $e) {
+            error_log('Payment error: ' . $e->getMessage());
+            
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Erro interno no processamento do pagamento'
             ]);
         }
     } else {

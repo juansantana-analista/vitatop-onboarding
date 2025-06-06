@@ -154,6 +154,46 @@ function buscarPessoa($location, $rest_key, $idPessoa)
 }
 //Fim da Função que busca Pessoa
 
+//Inicio da Função que busca Combos Disponíveis
+function buscarCombos($location, $rest_key)
+{
+    // Dados a serem enviados no corpo da requisição
+    $postData = [
+        'class' => 'ProdutoRestService',
+        'method' => 'listarCombos'
+    ];
+
+    // Inicializa o cURL
+    $ch = curl_init($location);
+
+    // Define as opções do cURL
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Authorization: Basic ' . $rest_key
+    ]);
+
+    // Executa a requisição
+    $response = curl_exec($ch);
+
+    // Verifica se houve erros
+    if ($response === false) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        return ['status' => 'error', 'message' => $error];
+    }
+
+    // Decodifica a resposta JSON
+    $result = json_decode($response, true);
+    curl_close($ch);
+
+    // Retorna o resultado
+    return $result;
+}
+//Fim da Função que busca Combos Disponíveis
+
 //Inicio da Função que valida o formulario e cadastra o usuario
 function processarFormulario($location, $rest_key, $formData)
 {
@@ -277,3 +317,44 @@ function verificarEmail($location, $rest_key, $formData)
     return $result;
 }
 //Fim da Função que verifica Email cadastrado
+
+//Inicio da Função que processa pagamento
+function processarPagamento($location, $rest_key, $paymentData)
+{
+    // Dados a serem enviados no corpo da requisição
+    $requestData = [
+        'class' => 'PagamentoRestService',
+        'method' => 'processarPagamento',
+        'dados' => $paymentData
+    ];
+
+    // Inicializa o cURL
+    $ch = curl_init($location);
+
+    // Define as opções do cURL
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestData));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Authorization: Basic ' . $rest_key
+    ]);
+
+    // Executa a requisição
+    $response = curl_exec($ch);
+
+    // Verifica se houve erros
+    if ($response === false) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        return ['status' => 'error', 'message' => $error];
+    }
+
+    // Decodifica a resposta JSON
+    $result = json_decode($response, true);
+    curl_close($ch);
+
+    // Retorna o resultado
+    return $result;
+}
+//Fim da Função que processa pagamento

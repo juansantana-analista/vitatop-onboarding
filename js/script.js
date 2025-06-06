@@ -1,10 +1,15 @@
-// Onboarding Logic com Validação Robusta
+// Onboarding Logic com Validação Robusta e Funcionalidades de Combo/Pagamento
 class OnboardingApp {
     constructor() {
         this.currentStep = 1;
+        this.totalSteps = 4;
         this.userData = {};
         this.personType = 'F'; // Default to Pessoa Física
         this.validationInProgress = false;
+        this.selectedCombo = null;
+        this.combos = [];
+        this.selectedPaymentMethod = null;
+        this.swiperInstance = null;
         
         this.init();
     }
@@ -44,14 +49,39 @@ class OnboardingApp {
             });
         });
         
+        // Payment method selection
+        document.querySelectorAll('.payment-method').forEach(method => {
+            method.addEventListener('click', (e) => {
+                this.selectPaymentMethod(e.currentTarget);
+            });
+        });
+        
+        // Card input masks
+        const cardNumber = document.getElementById('cardNumber');
+        if (cardNumber) {
+            cardNumber.addEventListener('input', () => this.applyCardMask());
+        }
+        
+        const cardExpiry = document.getElementById('cardExpiry');
+        if (cardExpiry) {
+            cardExpiry.addEventListener('input', () => this.applyExpiryMask());
+        }
+        
+        const cardCVV = document.getElementById('cardCVV');
+        if (cardCVV) {
+            cardCVV.addEventListener('input', () => this.applyCVVMask());
+        }
+        
         // Enter key navigation
         document.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && !this.validationInProgress) {
                 const activeStep = document.querySelector('.step.active');
-                if (activeStep.id === 'step1') {
+                if (activeStep.id === 'step1' || activeStep.id === 'step2') {
                     this.nextStep();
-                } else if (activeStep.id === 'step2') {
-                    this.finishRegistration();
+                } else if (activeStep.id === 'step3') {
+                    this.handleComboStep();
+                } else if (activeStep.id === 'step4') {
+                    this.processPayment();
                 }
             }
         });
@@ -170,6 +200,40 @@ class OnboardingApp {
         }
         
         input.value = value;
+    }
+    
+    applyCardMask() {
+        const input = document.getElementById('cardNumber');
+        let value = input.value.replace(/\D/g, '');
+        
+        // Card mask: 0000 0000 0000 0000
+        if (value.length <= 16) {
+            value = value.replace(/(\d{4})(?=\d)/g, '$1 ');
+        }
+        
+        input.value = value;
+    }
+    
+    applyExpiryMask() {
+        const input = document.getElementById('cardExpiry');
+        let value = input.value.replace(/\D/g, '');
+        
+        // Expiry mask: MM/AA
+        if (value.length <= 4) {
+            value = value.replace(/(\d{2})(\d)/, '$1/$2');
+        }
+        
+        input.value = value;
+    }
+    
+    applyCVVMask() {
+        const input = document.getElementById('cardCVV');
+        let value = input.value.replace(/\D/g, '');
+        
+        // CVV mask: limit to 4 digits
+        if (value.length <= 4) {
+            input.value = value;
+        }
     }
     
     async lookupAddress() {
@@ -436,7 +500,6 @@ class OnboardingApp {
         
         // Validate each field sequentially to avoid race conditions
         for (const field of requiredFields) {
-            
             const fieldValid = await this.validateField(field);
             if (!fieldValid) {
                 isValid = false;
@@ -462,16 +525,11 @@ class OnboardingApp {
     }
     
     async validateDocumentRemote(document, personType) {
-        
         try {
             const formData = new FormData();
             const cleanDocument = document.replace(/\D/g, '');
             formData.append('documento', cleanDocument);
             formData.append('tipoPessoa', personType);
-            
-            for (let [key, value] of formData.entries()) {
-                console.log(`${key}: ${value}`);
-            }
             
             const response = await fetch(OnboardingConfig.endpoints.validateDocument, {
                 method: 'POST',
@@ -504,7 +562,6 @@ class OnboardingApp {
     }
     
     async validateEmailRemote(email) {
-        
         try {
             const formData = new FormData();
             formData.append('email', email);
@@ -528,13 +585,244 @@ class OnboardingApp {
         }
     }
     
+    async loadCombos() {
+        const loadingEl = document.getElementById('combosLoading');
+        const swiperEl = document.getElementById('combosSwiper');
+        const noCombosEl = document.getElementById('noCombos');
+        
+        try {
+            loadingEl.style.display = 'block';
+            swiperEl.style.display = 'none';
+            noCombosEl.style.display = 'none';
+            
+            const response = await fetch(OnboardingConfig.endpoints.combos);
+            const result = await response.json();
+            
+            if (result.status === 'success' && result.data && result.data.length > 0) {
+                this.combos = result.data;
+                this.renderCombos();
+                this.initSwiper();
+                
+                loadingEl.style.display = 'none';
+                swiperEl.style.display = 'block';
+            } else {
+                // No combos available
+                loadingEl.style.display = 'none';
+                noCombosEl.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Erro ao carregar combos:', error);
+            loadingEl.style.display = 'none';
+            noCombosEl.style.display = 'block';
+        }
+    }
+    
+    renderCombos() {
+        const wrapper = document.getElementById('combosWrapper');
+        wrapper.innerHTML = '';
+        
+        this.combos.forEach((combo, index) => {
+            const slide = document.createElement('div');
+            slide.className = 'swiper-slide';
+            slide.innerHTML = this.createComboCard(combo, index);
+            wrapper.appendChild(slide);
+        });
+    }
+    
+    createComboCard(combo, index) {
+        const discount = combo.desconto || 0;
+        const originalPrice = combo.preco_original || combo.preco;
+        const currentPrice = combo.preco;
+        const installments = Math.floor(currentPrice / 10); // Exemplo de parcelas
+        
+        return `
+            <div class="combo-card" data-combo-id="${combo.id}" onclick="app.selectCombo(${index})">
+                ${combo.destaque ? '<div class="combo-badge">MAIS VENDIDO</div>' : ''}
+                <div class="combo-header">
+                    <h4>${combo.nome}</h4>
+                </div>
+                <div class="combo-description">
+                    ${combo.descricao || 'Combo completo para acelerar seus resultados'}
+                </div>
+                <ul class="combo-features">
+                    ${combo.beneficios ? combo.beneficios.map(b => `<li><i class="fas fa-check"></i> ${b}</li>`).join('') : `
+                        <li><i class="fas fa-check"></i> Kit de produtos premium</li>
+                        <li><i class="fas fa-check"></i> Material de treinamento</li>
+                        <li><i class="fas fa-check"></i> Suporte especializado</li>
+                        <li><i class="fas fa-check"></i> Estratégias de vendas</li>
+                    `}
+                </ul>
+                <div class="combo-price">
+                    <div>
+                        ${discount > 0 ? `<div class="price-original">R$ ${this.formatPrice(originalPrice)}</div>` : ''}
+                        <div class="price-current">R$ ${this.formatPrice(currentPrice)}</div>
+                        <div class="price-installments">ou 12x de R$ ${this.formatPrice(currentPrice / 12)}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    formatPrice(price) {
+        return new Intl.NumberFormat('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(price);
+    }
+    
+    initSwiper() {
+        if (this.swiperInstance) {
+            this.swiperInstance.destroy();
+        }
+        
+        this.swiperInstance = new Swiper('.combos-swiper', {
+            slidesPerView: 1,
+            spaceBetween: 20,
+            loop: this.combos.length > 1,
+            autoplay: {
+                delay: 4000,
+                disableOnInteraction: false,
+            },
+            pagination: {
+                el: '.swiper-pagination',
+                clickable: true,
+            },
+            navigation: {
+                nextEl: '.swiper-button-next',
+                prevEl: '.swiper-button-prev',
+            },
+            breakpoints: {
+                640: {
+                    slidesPerView: 2,
+                    spaceBetween: 20,
+                },
+                768: {
+                    slidesPerView: 2,
+                    spaceBetween: 30,
+                },
+            }
+        });
+    }
+    
+    selectCombo(index) {
+        // Remove selection from all combos
+        document.querySelectorAll('.combo-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        
+        // Add selection to clicked combo
+        const selectedCard = document.querySelector(`[data-combo-id="${this.combos[index].id}"]`);
+        if (selectedCard) {
+            selectedCard.classList.add('selected');
+        }
+        
+        // Store selected combo
+        this.selectedCombo = this.combos[index];
+        
+        // Update UI
+        this.updateComboSelection();
+        
+        // Add selection animation
+        if (selectedCard) {
+            selectedCard.style.transform = 'scale(0.98)';
+            setTimeout(() => {
+                selectedCard.style.transform = '';
+            }, 150);
+        }
+    }
+    
+    updateComboSelection() {
+        const selectedComboEl = document.getElementById('selectedCombo');
+        const comboNameEl = document.getElementById('selectedComboName');
+        const comboPriceEl = document.getElementById('selectedComboPrice');
+        const continueWithoutBtn = document.getElementById('continueWithoutCombo');
+        const continueWithBtn = document.getElementById('continueWithCombo');
+        
+        if (this.selectedCombo) {
+            selectedComboEl.style.display = 'block';
+            comboNameEl.textContent = this.selectedCombo.nome;
+            comboPriceEl.textContent = `R$ ${this.formatPrice(this.selectedCombo.preco)}`;
+            
+            continueWithoutBtn.style.display = 'none';
+            continueWithBtn.style.display = 'flex';
+        } else {
+            selectedComboEl.style.display = 'none';
+            continueWithoutBtn.style.display = 'flex';
+            continueWithBtn.style.display = 'none';
+        }
+    }
+    
+    selectPaymentMethod(methodEl) {
+        // Remove selection from all methods
+        document.querySelectorAll('.payment-method').forEach(method => {
+            method.classList.remove('selected');
+        });
+        
+        // Add selection to clicked method
+        methodEl.classList.add('selected');
+        
+        // Store selected method
+        this.selectedPaymentMethod = methodEl.dataset.method;
+        
+        // Show/hide payment details
+        this.updatePaymentDetails();
+        
+        // Update installments for card
+        if (this.selectedPaymentMethod === 'card') {
+            this.updateInstallments();
+        }
+    }
+    
+    updatePaymentDetails() {
+        // Hide all payment details
+        document.querySelectorAll('.payment-details').forEach(detail => {
+            detail.style.display = 'none';
+        });
+        
+        // Show details for selected method
+        if (this.selectedPaymentMethod === 'card') {
+            const cardDetails = document.getElementById('cardDetails');
+            if (cardDetails) {
+                cardDetails.style.display = 'block';
+            }
+        }
+    }
+    
+    updateInstallments() {
+        const installmentsSelect = document.getElementById('installments');
+        const comboPrice = this.selectedCombo ? this.selectedCombo.preco : 0;
+        
+        if (installmentsSelect && comboPrice > 0) {
+            installmentsSelect.innerHTML = '';
+            
+            const maxInstallments = OnboardingConfig.payment.methods.card.maxInstallments;
+            for (let i = 1; i <= maxInstallments; i++) {
+                const installmentValue = comboPrice / i;
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `${i}x de R$ ${this.formatPrice(installmentValue)}${i === 1 ? ' sem juros' : ''}`;
+                installmentsSelect.appendChild(option);
+            }
+        }
+    }
+    
     async nextStep() {
         // Prevent multiple simultaneous validations
         if (this.validationInProgress) {
             return;
         }
         
-        
+        // Handle different step transitions
+        if (this.currentStep === 1) {
+            await this.handleStep1();
+        } else if (this.currentStep === 2) {
+            await this.handleStep2();
+        } else if (this.currentStep === 3) {
+            await this.handleStep3();
+        }
+    }
+    
+    async handleStep1() {
         // Show loading on continue button while validating
         const continueBtn = document.querySelector('#step1 .btn-primary');
         const originalHtml = continueBtn.innerHTML;
@@ -549,12 +837,9 @@ class OnboardingApp {
             const isValid = await this.validateStep(1);
             
             if (!isValid) {
-                
                 this.showError(OnboardingConfig.ui.errorMessages?.validationError || 'Por favor, corrija os erros antes de continuar');
                 return;
             }
-            
-    
             
             // Save step 1 data
             this.userData = {
@@ -566,13 +851,9 @@ class OnboardingApp {
                 password: document.getElementById('password').value
             };
             
-            
-            
             this.currentStep = 2;
             this.showStep(2);
             this.updateProgress();
-            
-            // Add transition effect
             this.addTransitionEffect();
             
         } catch (error) {
@@ -587,11 +868,238 @@ class OnboardingApp {
         }
     }
     
+    async handleStep2() {
+        // Show loading on continue button
+        const continueBtn = document.querySelector('#step2 .btn-primary');
+        const originalHtml = continueBtn.innerHTML;
+        continueBtn.disabled = true;
+        continueBtn.classList.add('loading');
+        continueBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Validando...`;
+        
+        try {
+            this.validationInProgress = true;
+            
+            // CRITICAL: Validate step 2
+            const isValid = await this.validateStep(2);
+            
+            if (!isValid) {
+                this.showError('Por favor, corrija os erros antes de continuar');
+                return;
+            }
+            
+            // Save step 2 data
+            this.userData.address = {
+                cep: document.getElementById('cep').value,
+                street: document.getElementById('street').value.trim(),
+                number: document.getElementById('number').value.trim(),
+                complement: document.getElementById('complement').value.trim(),
+                neighborhood: document.getElementById('neighborhood').value.trim(),
+                city: document.getElementById('city').value.trim(),
+                state: document.getElementById('state').value.trim()
+            };
+            
+            this.currentStep = 3;
+            this.showStep(3);
+            this.updateProgress();
+            this.addTransitionEffect();
+            
+            // Load combos when entering step 3
+            await this.loadCombos();
+            
+        } catch (error) {
+            console.error('❌ ERRO na validação:', error);
+            this.showError('Erro na validação. Tente novamente.');
+        } finally {
+            this.validationInProgress = false;
+            continueBtn.disabled = false;
+            continueBtn.classList.remove('loading');
+            continueBtn.innerHTML = originalHtml;
+        }
+    }
+    
+    async handleStep3() {
+        if (this.selectedCombo) {
+            // Has combo selected - go to payment
+            this.currentStep = 4;
+            this.showStep(4);
+            this.updateProgress();
+            this.updatePaymentSummary();
+            this.addTransitionEffect();
+        } else {
+            // No combo selected - show confirmation
+            const confirmed = await this.showComboConfirmation();
+            if (confirmed) {
+                // Proceed to finish registration without combo
+                await this.finishRegistration();
+            }
+        }
+    }
+    
+    async showComboConfirmation() {
+        return new Promise((resolve) => {
+            // Create modal overlay
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                backdrop-filter: blur(5px);
+            `;
+            
+            // Create modal
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                background: white;
+                padding: 32px;
+                border-radius: 16px;
+                max-width: 400px;
+                margin: 20px;
+                text-align: center;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            `;
+            
+            modal.innerHTML = `
+                <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                <h3 style="color: #1e293b; margin-bottom: 12px;">Tem certeza?</h3>
+                <p style="color: #64748b; margin-bottom: 24px; line-height: 1.5;">
+                    Você está perdendo a oportunidade de <strong>acelerar seus resultados</strong> 
+                    com nossos combos especiais. Milhares de pessoas já transformaram suas vidas com eles!
+                </p>
+                <div style="display: flex; gap: 12px; justify-content: center;">
+                    <button id="goBackBtn" style="
+                        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                        color: white;
+                        border: none;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        font-weight: 600;
+                        cursor: pointer;
+                    ">Ver Combos</button>
+                    <button id="continueBtn" style="
+                        background: white;
+                        color: #64748b;
+                        border: 2px solid #e2e8f0;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        font-weight: 600;
+                        cursor: pointer;
+                    ">Continuar sem combo</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // Add event listeners
+            modal.querySelector('#goBackBtn').addEventListener('click', () => {
+                document.body.removeChild(overlay);
+                resolve(false);
+            });
+            
+            modal.querySelector('#continueBtn').addEventListener('click', () => {
+                document.body.removeChild(overlay);
+                resolve(true);
+            });
+            
+            // Close on overlay click
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    document.body.removeChild(overlay);
+                    resolve(false);
+                }
+            });
+        });
+    }
+    
+    updatePaymentSummary() {
+        const comboNameEl = document.getElementById('comboNamePayment');
+        const comboPriceEl = document.getElementById('comboPricePayment');
+        
+        if (this.selectedCombo && comboNameEl && comboPriceEl) {
+            comboNameEl.textContent = this.selectedCombo.nome;
+            comboPriceEl.textContent = `R$ ${this.formatPrice(this.selectedCombo.preco)}`;
+        }
+    }
+    
+    async processPayment() {
+        if (!this.selectedPaymentMethod) {
+            this.showError('Selecione uma forma de pagamento');
+            return;
+        }
+        
+        const paymentButton = document.getElementById('paymentButton');
+        const originalHtml = paymentButton.innerHTML;
+        paymentButton.disabled = true;
+        paymentButton.classList.add('loading');
+        paymentButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${OnboardingConfig.ui.loadingMessages.processingPayment}`;
+        
+        try {
+            // Validate card fields if card payment
+            if (this.selectedPaymentMethod === 'card') {
+                const cardFields = ['cardNumber', 'cardName', 'cardExpiry', 'cardCVV'];
+                for (const fieldId of cardFields) {
+                    const field = document.getElementById(fieldId);
+                    if (!field.value.trim()) {
+                        this.showError('Preencha todos os dados do cartão');
+                        return;
+                    }
+                }
+            }
+            
+            // Prepare payment data
+            const paymentData = new FormData();
+            paymentData.append('action', 'process_payment');
+            paymentData.append('comboId', this.selectedCombo.id);
+            paymentData.append('paymentMethod', this.selectedPaymentMethod);
+            paymentData.append('valor', this.selectedCombo.preco);
+            
+            // Add card data if needed
+            if (this.selectedPaymentMethod === 'card') {
+                paymentData.append('cardNumber', document.getElementById('cardNumber').value);
+                paymentData.append('cardName', document.getElementById('cardName').value);
+                paymentData.append('cardExpiry', document.getElementById('cardExpiry').value);
+                paymentData.append('cardCVV', document.getElementById('cardCVV').value);
+                paymentData.append('installments', document.getElementById('installments').value || 1);
+            }
+            
+            // Submit payment
+            const response = await fetch(OnboardingConfig.endpoints.payment, {
+                method: 'POST',
+                body: paymentData
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                this.showSuccessStep(true);
+            } else {
+                this.showError(result.message || OnboardingConfig.ui.errorMessages.paymentError);
+            }
+            
+        } catch (error) {
+            console.error('❌ ERRO no pagamento:', error);
+            this.showError(OnboardingConfig.ui.errorMessages.paymentError);
+        } finally {
+            paymentButton.disabled = false;
+            paymentButton.classList.remove('loading');
+            paymentButton.innerHTML = originalHtml;
+        }
+    }
+    
     prevStep() {
-        this.currentStep = 1;
-        this.showStep(1);
-        this.updateProgress();
-        this.addTransitionEffect();
+        if (this.currentStep > 1) {
+            this.currentStep--;
+            this.showStep(this.currentStep);
+            this.updateProgress();
+            this.addTransitionEffect();
+        }
     }
     
     showStep(stepNumber) {
@@ -607,13 +1115,9 @@ class OnboardingApp {
         const progressText = document.getElementById('progressText');
         
         if (progressFill && progressText) {
-            if (this.currentStep === 1) {
-                progressFill.style.width = '50%';
-                progressText.textContent = 'Etapa 1 de 2';
-            } else if (this.currentStep === 2) {
-                progressFill.style.width = '100%';
-                progressText.textContent = 'Etapa 2 de 2';
-            }
+            const percentage = (this.currentStep / this.totalSteps) * 100;
+            progressFill.style.width = `${percentage}%`;
+            progressText.textContent = `Etapa ${this.currentStep} de ${this.totalSteps}`;
         }
     }
     
@@ -630,14 +1134,11 @@ class OnboardingApp {
     async finishRegistration() {
         // Prevent multiple simultaneous submissions
         if (this.validationInProgress) {
-            
             return;
         }
         
-        
-        
         // Show loading state
-        const submitButton = document.querySelector('#step2 .btn-primary');
+        const submitButton = document.querySelector('#step3 .btn-primary');
         const originalHtml = submitButton.innerHTML;
         submitButton.disabled = true;
         submitButton.classList.add('loading');
@@ -646,32 +1147,7 @@ class OnboardingApp {
         try {
             this.validationInProgress = true;
             
-            // CRITICAL: Validate step 2
-            const isValid = await this.validateStep(2);
-            
-            if (!isValid) {
-                
-                this.showError('Por favor, corrija os erros antes de finalizar');
-                return;
-            }
-            
-            
-            
-            // Save step 2 data
-            this.userData.address = {
-                cep: document.getElementById('cep').value,
-                street: document.getElementById('street').value.trim(),
-                number: document.getElementById('number').value.trim(),
-                complement: document.getElementById('complement').value.trim(),
-                neighborhood: document.getElementById('neighborhood').value.trim(),
-                city: document.getElementById('city').value.trim(),
-                state: document.getElementById('state').value.trim()
-            };
-            
-            
-            
             // FINAL VALIDATION BEFORE REGISTRATION
-            
             if (!this.userData.name || !this.userData.email || !this.userData.document || 
                 !this.userData.password || !this.userData.phone) {
                 throw new Error('Dados obrigatórios faltando');
@@ -681,7 +1157,7 @@ class OnboardingApp {
             await this.processRegistration();
             
             // Show success step
-            this.showSuccessStep();
+            this.showSuccessStep(false);
             
         } catch (error) {
             console.error('❌ ERRO CRÍTICO no cadastro:', error);
@@ -695,8 +1171,6 @@ class OnboardingApp {
     }
     
     async processRegistration() {
-        
-        
         try {
             // Prepare form data according to ajax_handler.php structure
             const formData = new FormData();
@@ -705,13 +1179,13 @@ class OnboardingApp {
             formData.append('action', 'register');
             
             // Add all required fields
-            formData.append('tipoPessoa', this.personType);
+            formData.append('tipoPessoa', this.userData.personType);
             formData.append('nomeAfiliado', this.userData.name);
-            formData.append('razaoSocial', this.personType === 'J' ? this.userData.name : '');
+            formData.append('razaoSocial', this.userData.personType === 'J' ? this.userData.name : '');
             formData.append('dataNascimento', '');
             formData.append('genero', '');
             
-            if (this.personType === 'F') {
+            if (this.userData.personType === 'F') {
                 formData.append('CPF', this.userData.document.replace(/\D/g, ''));
                 formData.append('RG', '');
                 formData.append('CNPJ', '');
@@ -736,9 +1210,9 @@ class OnboardingApp {
             formData.append('cidade', this.userData.address.city);
             formData.append('estado', this.userData.address.state);
             
-            console.log('Dados do FormData:');
-            for (let [key, value] of formData.entries()) {
-                console.log(`${key}: ${value}`);
+            // Add combo ID if selected
+            if (this.selectedCombo) {
+                formData.append('idProduto', this.selectedCombo.id);
             }
             
             // Submit to ajax_handler.php for JSON response
@@ -746,8 +1220,6 @@ class OnboardingApp {
                 method: 'POST',
                 body: formData
             });
-            
-            console.log('Response status:', response.status);
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -778,7 +1250,7 @@ class OnboardingApp {
         }
     }
     
-    showSuccessStep() {
+    showSuccessStep(hasPayment = false) {
         // Hide progress bar
         const progressContainer = document.querySelector('.progress-container');
         if (progressContainer) {
@@ -795,16 +1267,32 @@ class OnboardingApp {
             successStep.classList.add('active');
         }
         
+        // Update success message
+        const successMessage = document.getElementById('successMessage');
+        if (successMessage) {
+            if (hasPayment) {
+                successMessage.textContent = 'Cadastro e pagamento realizados com sucesso!';
+            } else {
+                successMessage.textContent = 'Seu cadastro foi realizado com sucesso';
+            }
+        }
+        
         // Fill success details
         const registeredEmail = document.getElementById('registeredEmail');
         if (registeredEmail) {
             registeredEmail.textContent = this.userData.email;
         }
         
+        // Show payment success item if payment was made
+        const paymentSuccessItem = document.getElementById('paymentSuccessItem');
+        if (paymentSuccessItem) {
+            paymentSuccessItem.style.display = hasPayment ? 'flex' : 'none';
+        }
+        
         // Set app link
         const appLinks = document.querySelectorAll('a[href*="appvitatop"]');
         appLinks.forEach(link => {
-            if (this.successRedirect) {
+            if (this.successRedirect && this.successRedirect !== 'success') {
                 link.href = this.successRedirect;
             }
         });
@@ -847,9 +1335,12 @@ class OnboardingApp {
     startOver() {
         // Reset everything
         this.currentStep = 1;
+        this.totalSteps = 4;
         this.userData = {};
         this.personType = 'F';
         this.validationInProgress = false;
+        this.selectedCombo = null;
+        this.selectedPaymentMethod = null;
         
         // Reset form
         document.querySelectorAll('input').forEach(input => {
@@ -870,6 +1361,18 @@ class OnboardingApp {
         if (pfOption) {
             pfOption.classList.add('active');
         }
+        
+        // Reset combo selection
+        document.querySelectorAll('.combo-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        this.updateComboSelection();
+        
+        // Reset payment method selection
+        document.querySelectorAll('.payment-method').forEach(method => {
+            method.classList.remove('selected');
+        });
+        this.updatePaymentDetails();
         
         // Show step 1
         this.showStep(1);
@@ -978,6 +1481,12 @@ function prevStep() {
 function finishRegistration() {
     if (window.app) {
         window.app.finishRegistration();
+    }
+}
+
+function processPayment() {
+    if (window.app) {
+        window.app.processPayment();
     }
 }
 
@@ -1126,6 +1635,14 @@ style.textContent = `
     
     .person-type-option.active {
         box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+    
+    .combo-card {
+        transition: all 0.3s ease;
+    }
+    
+    .payment-method {
+        transition: all 0.2s ease;
     }
 `;
 document.head.appendChild(style);
