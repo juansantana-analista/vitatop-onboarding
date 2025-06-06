@@ -159,8 +159,11 @@ function buscarCombos($location, $rest_key)
 {
     // Dados a serem enviados no corpo da requisição
     $postData = [
-        'class' => 'ProdutoRestService',
-        'method' => 'listarCombos'
+        'class' => 'ProdutoVariacaoRest',
+        'method' => 'loadAll',
+            'filters' => [
+                ['produto_kit', '=', 1]
+            ]
     ];
 
     // Inicializa o cURL

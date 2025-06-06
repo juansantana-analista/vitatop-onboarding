@@ -631,15 +631,15 @@ class OnboardingApp {
     
     createComboCard(combo, index) {
         const discount = combo.desconto || 0;
-        const originalPrice = combo.preco_original || combo.preco;
-        const currentPrice = combo.preco;
+        const originalPrice = combo.preco_lojavirtual || combo.preco_lojavirtual;
+        const currentPrice = combo.preco_lojavirtual;
         const installments = Math.floor(currentPrice / 10); // Exemplo de parcelas
         
         return `
             <div class="combo-card" data-combo-id="${combo.id}" onclick="app.selectCombo(${index})">
                 ${combo.destaque ? '<div class="combo-badge">MAIS VENDIDO</div>' : ''}
                 <div class="combo-header">
-                    <h4>${combo.nome}</h4>
+                    <h4>${combo.titulo}</h4>
                 </div>
                 <div class="combo-description">
                     ${combo.descricao || 'Combo completo para acelerar seus resultados'}
