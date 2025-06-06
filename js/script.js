@@ -639,11 +639,15 @@ class OnboardingApp {
             <div class="combo-card" data-combo-id="${combo.id}" onclick="app.selectCombo(${index})">
                 ${combo.destaque ? '<div class="combo-badge">MAIS VENDIDO</div>' : ''}
                 <div class="combo-header">
-                    <h4>${combo.titulo}</h4>
+                    <h4>${combo.nome}</h4>
+                </div>
+                <div class="combo-image">
+                    <img src="https://vitatop.tecskill.com.br/${combo.foto}" alt="${combo.nome}" style="width: 100%; height: auto;" />
                 </div>
                 <div class="combo-description">
-                    ${combo.descricao || 'Combo completo para acelerar seus resultados'}
+                    ${combo.descricao_app || 'Combo completo para acelerar seus resultados'}
                 </div>
+                <!-- 
                 <ul class="combo-features">
                     ${combo.beneficios ? combo.beneficios.map(b => `<li><i class="fas fa-check"></i> ${b}</li>`).join('') : `
                         <li><i class="fas fa-check"></i> Kit de produtos premium</li>
@@ -652,6 +656,7 @@ class OnboardingApp {
                         <li><i class="fas fa-check"></i> Estratégias de vendas</li>
                     `}
                 </ul>
+                -->
                 <div class="combo-price">
                     <div>
                         ${discount > 0 ? `<div class="price-original">R$ ${this.formatPrice(originalPrice)}</div>` : ''}
