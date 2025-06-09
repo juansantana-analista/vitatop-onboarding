@@ -1251,10 +1251,10 @@ async processPayment() {
                 throw new Error('Resposta inválida do servidor');
             }
             
-            if (result.status === 'success') {
+            if (result.status === 'success' && result.data && result.data.status === 'success') {
                 return {
                     success: true,
-                    data: result.data || {}
+                    data: result.data.data || {} // Note o .data.data para acessar o nível correto
                 };
             } else {
                 console.log('❌ CADASTRO FALHOU:', result.message);
