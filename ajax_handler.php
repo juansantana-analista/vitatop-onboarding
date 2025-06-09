@@ -306,29 +306,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        // Prepare payment data with user information
+        $paymentMethodMap = [
+            'card' => 1,    // Cartão de Crédito
+            'boleto' => 2,  // Boleto
+            'pix' => 3      // PIX
+        ];
+
         $paymentData = [
             'pessoa_id' => $_POST['pessoaId'],
             'endereco_entrega_id' => $_POST['enderecoId'] ?? null,
             'produto_id' => $_POST['comboId'],
-            'opcao_pagamento' => $_POST['paymentMethod'],
+            'opcao_pagamento' => $paymentMethodMap[$_POST['paymentMethod']], // Converter para número
             'valor' => $_POST['valor'] ?? 0
         ];
-        
-        // Add card data if needed
+
+        // Add card data directly to the main array if card payment
         if ($_POST['paymentMethod'] === 'card') {
-            $paymentData['cardData'] = [
-                'numero_cartao' => preg_replace('/\D/', '', $_POST['cardNumber']),
-                'nome_cartao' => trim($_POST['cardName']),
-                'validade_cartao' => $_POST['cardExpiry'],
-                'cvc_cartao' => $_POST['cardCVV'],
-                'installments' => $_POST['installments'] ?? 1
-            ];
+            $paymentData['numero_cartao'] = preg_replace('/\D/', '', $_POST['cardNumber']);
+            $paymentData['nome_cartao'] = trim($_POST['cardName']);
+            $paymentData['validade_cartao'] = $_POST['cardExpiry'];
+            $paymentData['cvc_cartao'] = $_POST['cardCVV'];
+            $paymentData['installments'] = $_POST['installments'] ?? 1;
             
             error_log('💳 DADOS DO CARTÃO PREPARADOS:');
-            error_log('- Número: ' . substr($paymentData['cardData']['numero_cartao'], 0, 6) . '****');
-            error_log('- Nome: ' . $paymentData['cardData']['nome_cartao']);
-            error_log('- Parcelas: ' . $paymentData['cardData']['installments']);
+            error_log('- Número: ' . substr($paymentData['numero_cartao'], 0, 6) . '****');
+            error_log('- Nome: ' . $paymentData['nome_cartao']);
+            error_log('- Parcelas: ' . $paymentData['installments']);
         }
         
         // LOG: Dados preparados para enviar para a API
