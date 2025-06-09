@@ -973,8 +973,6 @@ class OnboardingApp {
             const registrationResult = await this.processRegistration();
             
             if (registrationResult.success) {
-                console.log(registrationResult);
-                return;
                 // Store registered user data
                 this.registeredUser = {
                     pessoa_id: registrationResult.data.pessoa_id,
