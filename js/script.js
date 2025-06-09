@@ -975,8 +975,8 @@ class OnboardingApp {
             if (registrationResult.success) {
                 // Store registered user data
                 this.registeredUser = {
-                    pessoa_id: registrationResult.data.pessoa_id,
-                    endereco_id: registrationResult.data.endereco_id,
+                    pessoa_id: registrationResult.data.data.pessoa_id,
+                    endereco_id: registrationResult.data.data.endereco_id,
                     email: this.userData.email
                 };
                 
