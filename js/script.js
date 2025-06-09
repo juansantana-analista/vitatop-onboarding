@@ -1018,7 +1018,7 @@ class OnboardingApp {
         }
     }
     
-    async processPayment() {
+async processPayment() {
         if (!this.selectedPaymentMethod) {
             this.showError('Selecione uma forma de pagamento');
             return;
@@ -1061,22 +1061,90 @@ class OnboardingApp {
                 paymentData.append('installments', document.getElementById('installments').value || 1);
             }
             
+            // LOG: Dados sendo enviados para o servidor
+            console.log('🔄 ENVIANDO DADOS DE PAGAMENTO:');
+            console.log('- Pessoa ID:', this.registeredUser.pessoa_id);
+            console.log('- Endereço ID:', this.registeredUser.endereco_id);
+            console.log('- Combo ID:', this.selectedCombo.id);
+            console.log('- Método de Pagamento:', this.selectedPaymentMethod);
+            console.log('- Valor:', this.selectedCombo.preco);
+            console.log('- Combo Selecionado:', this.selectedCombo);
+            
             // Submit payment
             const response = await fetch(OnboardingConfig.endpoints.payment, {
                 method: 'POST',
                 body: paymentData
             });
             
-            const result = await response.json();
+            // LOG: Status da resposta HTTP
+            console.log('📡 RESPOSTA HTTP STATUS:', response.status, response.statusText);
             
+            // Get response text first to log it
+            const responseText = await response.text();
+            console.log('📄 RESPOSTA RAW DO SERVIDOR:', responseText);
+            
+            // Try to parse as JSON
+            let result;
+            try {
+                result = JSON.parse(responseText);
+                console.log('✅ RESPOSTA JSON PARSEADA:', result);
+            } catch (parseError) {
+                console.error('❌ ERRO AO FAZER PARSE DO JSON:', parseError);
+                console.log('📄 TEXTO DA RESPOSTA:', responseText);
+                throw new Error('Resposta inválida do servidor de pagamento');
+            }
+            
+            // LOG: Detalhes da resposta da API
             if (result.status === 'success') {
+                console.log('🎉 PAGAMENTO PROCESSADO COM SUCESSO!');
+                console.log('📋 DADOS RETORNADOS PELA API:', result.data);
+                
+                // Log específico dos dados da API Safe2Pay
+                if (result.data) {
+                    console.log('💳 DETALHES DO PAGAMENTO:');
+                    console.log('- Transaction ID:', result.data.transactionId || 'N/A');
+                    console.log('- Payment ID:', result.data.paymentId || 'N/A');
+                    console.log('- Status:', result.data.status || 'N/A');
+                    console.log('- Valor:', result.data.amount || result.data.valor || 'N/A');
+                    console.log('- Método:', result.data.paymentMethod || 'N/A');
+                    
+                    // Se for PIX, log do QR Code ou chave PIX
+                    if (result.data.pixQrCode || result.data.qrCode) {
+                        console.log('🔳 QR CODE PIX:', result.data.pixQrCode || result.data.qrCode);
+                    }
+                    
+                    // Se for boleto, log da URL
+                    if (result.data.boletoUrl || result.data.bankSlipUrl) {
+                        console.log('📄 URL DO BOLETO:', result.data.boletoUrl || result.data.bankSlipUrl);
+                    }
+                    
+                    // Se for cartão, log dos detalhes
+                    if (result.data.cardDetails) {
+                        console.log('💳 DETALHES DO CARTÃO:', result.data.cardDetails);
+                    }
+                    
+                    // Log de qualquer URL de redirecionamento
+                    if (result.data.redirectUrl || result.data.checkoutUrl) {
+                        console.log('🔗 URL DE REDIRECIONAMENTO:', result.data.redirectUrl || result.data.checkoutUrl);
+                    }
+                }
+                
                 this.showSuccessStep(true);
             } else {
+                console.error('❌ ERRO NO PAGAMENTO:');
+                console.error('- Status:', result.status);
+                console.error('- Mensagem:', result.message);
+                console.error('- Dados:', result.data);
+                
                 this.showError(result.message || OnboardingConfig.ui.errorMessages.paymentError);
             }
             
         } catch (error) {
-            console.error('❌ ERRO no pagamento:', error);
+            console.error('❌ ERRO CRÍTICO NO PAGAMENTO:', error);
+            console.error('- Tipo do erro:', error.name);
+            console.error('- Mensagem:', error.message);
+            console.error('- Stack:', error.stack);
+            
             this.showError(OnboardingConfig.ui.errorMessages.paymentError);
         } finally {
             paymentButton.disabled = false;

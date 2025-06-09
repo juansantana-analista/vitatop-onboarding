@@ -255,13 +255,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } 
     // Check if this is a payment processing request
-    else if (isset($_POST['action']) && $_POST['action'] === 'process_payment') {
+        else if (isset($_POST['action']) && $_POST['action'] === 'process_payment') {
+        
+        // LOG: Dados recebidos do frontend
+        error_log('🔄 AJAX HANDLER - DADOS RECEBIDOS:');
+        error_log('- Pessoa ID: ' . ($_POST['pessoaId'] ?? 'N/A'));
+        error_log('- Endereço ID: ' . ($_POST['enderecoId'] ?? 'N/A'));
+        error_log('- Combo ID: ' . ($_POST['comboId'] ?? 'N/A'));
+        error_log('- Método Pagamento: ' . ($_POST['paymentMethod'] ?? 'N/A'));
+        error_log('- Valor: ' . ($_POST['valor'] ?? 'N/A'));
+        error_log('- POST completo: ' . print_r($_POST, true));
         
         // Validate required payment fields
         $requiredPaymentFields = ['paymentMethod', 'pessoaId', 'comboId'];
         
         $fieldErrors = validateRequiredFields($_POST, $requiredPaymentFields);
         if (!empty($fieldErrors)) {
+            error_log('❌ ERRO - Campos obrigatórios faltando: ' . implode(', ', $fieldErrors));
             echo json_encode([
                 'status' => 'error',
                 'message' => 'Dados de pagamento incompletos'
@@ -272,6 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Validate payment method
         $validMethods = ['pix', 'card', 'boleto'];
         if (!in_array($_POST['paymentMethod'], $validMethods)) {
+            error_log('❌ ERRO - Método de pagamento inválido: ' . $_POST['paymentMethod']);
             echo json_encode([
                 'status' => 'error',
                 'message' => 'Método de pagamento inválido'
@@ -285,6 +296,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             foreach ($requiredCardFields as $field) {
                 if (!isset($_POST[$field]) || empty(trim($_POST[$field]))) {
+                    error_log('❌ ERRO - Dados do cartão incompletos. Campo faltando: ' . $field);
                     echo json_encode([
                         'status' => 'error',
                         'message' => 'Dados do cartão incompletos'
@@ -312,25 +324,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'cvc_cartao' => $_POST['cardCVV'],
                 'installments' => $_POST['installments'] ?? 1
             ];
+            
+            error_log('💳 DADOS DO CARTÃO PREPARADOS:');
+            error_log('- Número: ' . substr($paymentData['cardData']['numero_cartao'], 0, 6) . '****');
+            error_log('- Nome: ' . $paymentData['cardData']['nome_cartao']);
+            error_log('- Parcelas: ' . $paymentData['cardData']['installments']);
         }
+        
+        // LOG: Dados preparados para enviar para a API
+        error_log('📤 DADOS PREPARADOS PARA API:');
+        error_log(print_r($paymentData, true));
         
         try {
             $response = processarPagamento($location, $rest_key, $paymentData);
             
+            // LOG: Resposta completa da API
+            error_log('📥 RESPOSTA COMPLETA DA API SAFE2PAY:');
+            error_log(print_r($response, true));
+            
             if ($response['status'] === 'success') {
+                error_log('✅ PAGAMENTO PROCESSADO COM SUCESSO');
+                
                 echo json_encode([
                     'status' => 'success',
                     'message' => 'Pagamento processado com sucesso!',
                     'data' => $response['data'] ?? []
                 ]);
             } else {
+                error_log('❌ ERRO NO PAGAMENTO:');
+                error_log('- Status: ' . ($response['status'] ?? 'N/A'));
+                error_log('- Message: ' . ($response['message'] ?? 'N/A'));
+                error_log('- Data: ' . print_r($response['data'] ?? [], true));
+                
                 echo json_encode([
                     'status' => 'error',
                     'message' => $response['message'] ?? 'Erro ao processar pagamento'
                 ]);
             }
         } catch (Exception $e) {
-            error_log('Payment error: ' . $e->getMessage());
+            error_log('❌ EXCEPTION NO PROCESSAMENTO DE PAGAMENTO:');
+            error_log('- Message: ' . $e->getMessage());
+            error_log('- File: ' . $e->getFile());
+            error_log('- Line: ' . $e->getLine());
+            error_log('- Trace: ' . $e->getTraceAsString());
             
             echo json_encode([
                 'status' => 'error',

@@ -1,0 +1,17 @@
+Beleza fiz algumas mudanças analise os arquivos, a minha apí "PagamentoSafe2payRest" que esta na funçao processarPagamento retorna as informaçoes de pagamento, por exemplo no caso de boleto, retorna codigo do boleto e link do boleto, no caso de pix retorna a imagem do qrcode e codigo do pix, e no caso de cartao ja retorna se foi autorizada ou nao etc... preciso implementar isso, assim que usuario selecionar a forma de pagamento e avançar entao trazer essas inforamç~eos
+
+o tipo de resposta que vem
+
+boleto vem algo assim
+
+["data"]["data"]["boleto_linhadigitavel"]
+
+["data"]["data"]["data_vencimento"]
+
+["data"]["data"]["pedido_id"]
+
+["data"]["data"]["boleto_impressao"]
+
+cartao
+
+["data"]["data"]["status_compra"] 
