@@ -1,4 +1,4 @@
-// Onboarding Logic com Validação Robusta e Funcionalidades de Combo/Pagamento
+// Sistema de Onboarding Completo com Validação Robusta e Checkout Integrado
 class OnboardingApp {
     constructor() {
         this.currentStep = 1;
@@ -10,6 +10,7 @@ class OnboardingApp {
         this.combos = [];
         this.selectedPaymentMethod = null;
         this.swiperInstance = null;
+        this.registrationResponse = null; // Para armazenar resposta do cadastro
         
         this.init();
     }
@@ -18,6 +19,21 @@ class OnboardingApp {
         this.setupEventListeners();
         this.setupMasks();
         this.updateProgress();
+        this.loadStateFromSession();
+    }
+    
+    loadStateFromSession() {
+        // Carregar dados pré-preenchidos da sessão PHP se existirem
+        const preFilledData = {
+            name: document.getElementById('name')?.value || '',
+            email: document.getElementById('email')?.value || '',
+            phone: document.getElementById('phone')?.value || ''
+        };
+        
+        // Se há dados pré-preenchidos, armazená-los
+        if (preFilledData.name || preFilledData.email || preFilledData.phone) {
+            this.userData = { ...this.userData, ...preFilledData };
+        }
     }
     
     setupEventListeners() {
@@ -36,14 +52,16 @@ class OnboardingApp {
             });
         }
         
-        // Form validation on input with debounce for remote validation
+        // Real-time validation with debounce
         document.querySelectorAll('input[required], select[required]').forEach(input => {
             // Immediate validation for basic checks
             input.addEventListener('input', () => {
                 this.clearFieldError(input);
+                // Debounced validation for remote checks
+                this.debounceValidation(input);
             });
             
-            // Detailed validation on blur (including remote validation)
+            // Full validation on blur
             input.addEventListener('blur', async () => {
                 await this.validateField(input);
             });
@@ -56,10 +74,24 @@ class OnboardingApp {
             });
         });
         
-        // Card input masks
+        // Card input masks and validation
+        this.setupCardInputs();
+        
+        // Enter key navigation
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !this.validationInProgress) {
+                this.handleEnterKey();
+            }
+        });
+    }
+    
+    setupCardInputs() {
         const cardNumber = document.getElementById('cardNumber');
         if (cardNumber) {
-            cardNumber.addEventListener('input', () => this.applyCardMask());
+            cardNumber.addEventListener('input', () => {
+                this.applyCardMask();
+                this.detectCardType();
+            });
         }
         
         const cardExpiry = document.getElementById('cardExpiry');
@@ -71,20 +103,38 @@ class OnboardingApp {
         if (cardCVV) {
             cardCVV.addEventListener('input', () => this.applyCVVMask());
         }
+    }
+    
+    handleEnterKey() {
+        const activeStep = document.querySelector('.step.active');
+        if (!activeStep) return;
         
-        // Enter key navigation
-        document.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !this.validationInProgress) {
-                const activeStep = document.querySelector('.step.active');
-                if (activeStep.id === 'step1' || activeStep.id === 'step2') {
+        switch (activeStep.id) {
+            case 'step1':
+            case 'step2':
+                this.nextStep();
+                break;
+            case 'step3':
+                if (this.selectedCombo) {
                     this.nextStep();
-                } else if (activeStep.id === 'step3') {
-                    this.handleComboStep();
-                } else if (activeStep.id === 'step4') {
-                    this.processPayment();
+                } else {
+                    this.handleComboSkip();
                 }
+                break;
+            case 'step4':
+                this.processPayment();
+                break;
+        }
+    }
+    
+    // Debounced validation for remote checks
+    debounceValidation(field) {
+        clearTimeout(field.validationTimeout);
+        field.validationTimeout = setTimeout(async () => {
+            if (field.id === 'document' || field.id === 'email') {
+                await this.validateField(field);
             }
-        });
+        }, 800);
     }
     
     setupMasks() {
@@ -128,10 +178,14 @@ class OnboardingApp {
         // Update document field
         this.updateDocumentField();
         
-        // Add animation
-        selectedOption.style.transform = 'scale(0.95)';
+        // Add visual feedback
+        this.addSelectionFeedback(selectedOption);
+    }
+    
+    addSelectionFeedback(element) {
+        element.style.transform = 'scale(0.95)';
         setTimeout(() => {
-            selectedOption.style.transform = '';
+            element.style.transform = '';
         }, 150);
     }
     
@@ -141,18 +195,18 @@ class OnboardingApp {
         
         if (this.personType === 'J') {
             documentLabel.textContent = 'CNPJ *';
-            documentInput.placeholder = OnboardingConfig.masks.cnpj;
+            documentInput.placeholder = '00.000.000/0000-00';
         } else {
             documentLabel.textContent = 'CPF *';
-            documentInput.placeholder = OnboardingConfig.masks.cpf;
+            documentInput.placeholder = '000.000.000-00';
         }
         
         // Clear current value and reapply mask
         documentInput.value = '';
-        // Clear any existing validation errors
         this.clearFieldError(documentInput);
     }
     
+    // === MÁSCARA E FORMATAÇÃO ===
     applyDocumentMask() {
         const input = document.getElementById('document');
         let value = input.value.replace(/\D/g, '');
@@ -181,7 +235,6 @@ class OnboardingApp {
         const input = document.getElementById('phone');
         let value = input.value.replace(/\D/g, '');
         
-        // Phone mask: (00) 00000-0000
         if (value.length <= 11) {
             value = value.replace(/(\d{2})(\d)/, '($1) $2');
             value = value.replace(/(\d{5})(\d)/, '$1-$2');
@@ -194,7 +247,6 @@ class OnboardingApp {
         const input = document.getElementById('cep');
         let value = input.value.replace(/\D/g, '');
         
-        // CEP mask: 00000-000
         if (value.length <= 8) {
             value = value.replace(/(\d{5})(\d)/, '$1-$2');
         }
@@ -206,7 +258,6 @@ class OnboardingApp {
         const input = document.getElementById('cardNumber');
         let value = input.value.replace(/\D/g, '');
         
-        // Card mask: 0000 0000 0000 0000
         if (value.length <= 16) {
             value = value.replace(/(\d{4})(?=\d)/g, '$1 ');
         }
@@ -218,7 +269,6 @@ class OnboardingApp {
         const input = document.getElementById('cardExpiry');
         let value = input.value.replace(/\D/g, '');
         
-        // Expiry mask: MM/AA
         if (value.length <= 4) {
             value = value.replace(/(\d{2})(\d)/, '$1/$2');
         }
@@ -230,12 +280,29 @@ class OnboardingApp {
         const input = document.getElementById('cardCVV');
         let value = input.value.replace(/\D/g, '');
         
-        // CVV mask: limit to 4 digits
         if (value.length <= 4) {
             input.value = value;
         }
     }
     
+    detectCardType() {
+        const input = document.getElementById('cardNumber');
+        const value = input.value.replace(/\D/g, '');
+        
+        // Detect card type and adjust CVV length
+        const cvvInput = document.getElementById('cardCVV');
+        if (value.startsWith('34') || value.startsWith('37')) {
+            // American Express - 4 digits CVV
+            cvvInput.maxLength = 4;
+            cvvInput.placeholder = '0000';
+        } else {
+            // Others - 3 digits CVV
+            cvvInput.maxLength = 3;
+            cvvInput.placeholder = '000';
+        }
+    }
+    
+    // === BUSCA DE ENDEREÇO ===
     async lookupAddress() {
         const cepInput = document.getElementById('cep');
         const cep = cepInput.value.replace(/\D/g, '');
@@ -246,17 +313,18 @@ class OnboardingApp {
         if (loading) loading.style.display = 'block';
         
         try {
-            const response = await fetch(`${OnboardingConfig.endpoints.viaCep}${cep}/json/`);
+            const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
             const data = await response.json();
             
             if (!data.erro) {
                 this.fillAddressFields(data);
-                this.showSuccess(OnboardingConfig.ui.successMessages.addressFound);
+                this.showSuccess('Endereço encontrado automaticamente!');
             } else {
-                this.showError(OnboardingConfig.ui.errorMessages.cepNotFound);
+                this.showError('CEP não encontrado');
             }
         } catch (error) {
-            this.showError(OnboardingConfig.ui.errorMessages.cepError);
+            console.error('Erro ao buscar CEP:', error);
+            this.showError('Erro ao buscar CEP. Verifique sua conexão.');
         } finally {
             if (loading) loading.style.display = 'none';
         }
@@ -269,9 +337,12 @@ class OnboardingApp {
         document.getElementById('state').value = addressData.uf || '';
         
         // Focus on number field
-        document.getElementById('number').focus();
+        setTimeout(() => {
+            document.getElementById('number').focus();
+        }, 100);
     }
     
+    // === VALIDAÇÃO DE CAMPOS ===
     clearFieldError(field) {
         const wrapper = field.closest('.input-wrapper') || field.closest('.form-group');
         const errorMessage = wrapper.querySelector('.error-message');
@@ -285,23 +356,19 @@ class OnboardingApp {
     showFieldError(field, message) {
         const wrapper = field.closest('.input-wrapper') || field.closest('.form-group');
         
-        // Clear existing error first
         this.clearFieldError(field);
         
-        // Add error state
         wrapper.classList.add('error');
         
-        // Create and append error message
         const errorDiv = document.createElement('div');
         errorDiv.className = 'error-message';
         errorDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
         wrapper.appendChild(errorDiv);
         
-        // Scroll to error if needed
+        // Scroll to error
         field.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     
-    // Comprehensive field validation function
     async validateField(field) {
         if (this.validationInProgress && field.id !== 'document' && field.id !== 'email') {
             return true;
@@ -309,92 +376,99 @@ class OnboardingApp {
         
         let isValid = true;
         let message = '';
-        
         const fieldValue = field.value.trim();
         
         // Required field validation
         if (field.hasAttribute('required') && !fieldValue) {
-            isValid = false;
-            message = OnboardingConfig.ui.errorMessages.requiredField;
+            this.showFieldError(field, 'Este campo é obrigatório');
+            return false;
         }
         
-        // If field is empty and not required, or if basic validation failed, return early
-        if (!fieldValue || !isValid) {
-            if (!isValid) {
-                this.showFieldError(field, message);
-            }
-            return isValid;
-        }
+        if (!fieldValue) return true; // Se não é obrigatório e está vazio, tudo bem
         
         // Email validation
         if (field.type === 'email') {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(fieldValue)) {
-                isValid = false;
-                message = OnboardingConfig.ui.errorMessages.invalidEmail;
-            } else {
-                // Remote email validation
-                try {
-                    this.validationInProgress = true;
-                    const emailAvailable = await this.validateEmailRemote(fieldValue);
-                    if (!emailAvailable) {
-                        isValid = false;
-                        message = OnboardingConfig.ui.errorMessages.emailExists;
-                    }
-                } catch (error) {
-                    console.error('Erro na validação do email:', error);
-                    isValid = false;
-                    message = 'Erro ao validar email. Tente novamente.';
-                } finally {
-                    this.validationInProgress = false;
+                this.showFieldError(field, 'E-mail inválido');
+                return false;
+            }
+            
+            // Remote email validation
+            try {
+                this.validationInProgress = true;
+                this.showFieldLoading(field, true);
+                
+                const emailAvailable = await this.validateEmailRemote(fieldValue);
+                if (!emailAvailable) {
+                    this.showFieldError(field, 'Este e-mail já está cadastrado');
+                    return false;
                 }
+            } catch (error) {
+                console.error('Erro na validação do email:', error);
+                this.showFieldError(field, 'Erro ao validar e-mail. Tente novamente.');
+                return false;
+            } finally {
+                this.validationInProgress = false;
+                this.showFieldLoading(field, false);
             }
         }
         
         // Document validation
         if (field.id === 'document') {
-            // Basic format validation
-            if (!this.validateDocument(fieldValue)) {
-                isValid = false;
-                message = this.personType === 'J' ? 
-                    OnboardingConfig.ui.errorMessages.invalidCNPJ : 
-                    OnboardingConfig.ui.errorMessages.invalidCPF;
-            } else {
-                // Remote document validation
-                try {
-                    this.validationInProgress = true;
-                    const docAvailable = await this.validateDocumentRemote(fieldValue, this.personType);
-                    if (!docAvailable) {
-                        isValid = false;
-                        message = this.personType === 'J' ? 
-                            OnboardingConfig.ui.errorMessages.cnpjExists : 
-                            OnboardingConfig.ui.errorMessages.cpfExists;
-                    }
-                } catch (error) {
-                    console.error('Erro na validação do documento:', error);
-                    isValid = false;
-                    message = 'Erro ao validar documento. Tente novamente.';
-                } finally {
-                    this.validationInProgress = false;
+            if (!this.validateDocumentFormat(fieldValue)) {
+                const docType = this.personType === 'J' ? 'CNPJ' : 'CPF';
+                this.showFieldError(field, `${docType} inválido`);
+                return false;
+            }
+            
+            // Remote document validation
+            try {
+                this.validationInProgress = true;
+                this.showFieldLoading(field, true);
+                
+                const docAvailable = await this.validateDocumentRemote(fieldValue, this.personType);
+                if (!docAvailable) {
+                    const docType = this.personType === 'J' ? 'CNPJ' : 'CPF';
+                    this.showFieldError(field, `Este ${docType} já está cadastrado`);
+                    return false;
                 }
+            } catch (error) {
+                console.error('Erro na validação do documento:', error);
+                this.showFieldError(field, 'Erro ao validar documento. Tente novamente.');
+                return false;
+            } finally {
+                this.validationInProgress = false;
+                this.showFieldLoading(field, false);
             }
         }
         
         // Password validation
         if (field.id === 'password') {
-            const minLength = OnboardingConfig.validation.minPasswordLength;
-            if (fieldValue.length < minLength) {
-                isValid = false;
-                message = OnboardingConfig.ui.errorMessages.shortPassword;
+            if (fieldValue.length < 8) {
+                this.showFieldError(field, 'Senha deve ter no mínimo 8 caracteres');
+                return false;
+            }
+            if (!/(?=.*[a-z])/.test(fieldValue)) {
+                this.showFieldError(field, 'Senha deve conter pelo menos uma letra minúscula');
+                return false;
+            }
+            if (!/(?=.*[A-Z])/.test(fieldValue)) {
+                this.showFieldError(field, 'Senha deve conter pelo menos uma letra maiúscula');
+                return false;
+            }
+            if (!/(?=.*\d)/.test(fieldValue)) {
+                this.showFieldError(field, 'Senha deve conter pelo menos um número');
+                return false;
             }
         }
         
-        // Phone validation (basic)
+        // Phone validation
         if (field.id === 'phone') {
             const phoneDigits = fieldValue.replace(/\D/g, '');
             if (phoneDigits.length < 10 || phoneDigits.length > 11) {
-                isValid = false;
-                message = 'Telefone deve ter 10 ou 11 dígitos';
+                this.showFieldError(field, 'Telefone deve ter 10 ou 11 dígitos');
+                return false;
             }
         }
         
@@ -402,31 +476,54 @@ class OnboardingApp {
         if (field.id === 'cep') {
             const cepDigits = fieldValue.replace(/\D/g, '');
             if (cepDigits.length !== 8) {
-                isValid = false;
-                message = 'CEP deve ter 8 dígitos';
+                this.showFieldError(field, 'CEP deve ter 8 dígitos');
+                return false;
             }
         }
         
         // Name validation
         if (field.id === 'name') {
             if (fieldValue.length < 3) {
-                isValid = false;
-                message = 'Nome deve ter pelo menos 3 caracteres';
-            } else if (!/^[a-zA-ZÀ-ÿ\s]+$/.test(fieldValue)) {
-                isValid = false;
-                message = 'Nome deve conter apenas letras e espaços';
+                this.showFieldError(field, 'Nome deve ter pelo menos 3 caracteres');
+                return false;
+            }
+            if (!/^[a-zA-ZÀ-ÿ\s]+$/.test(fieldValue)) {
+                this.showFieldError(field, 'Nome deve conter apenas letras e espaços');
+                return false;
             }
         }
         
-        // Show error if validation failed
-        if (!isValid) {
-            this.showFieldError(field, message);
-        }
-        
-        return isValid;
+        return true;
     }
     
-    validateDocument(doc) {
+    showFieldLoading(field, show) {
+        const wrapper = field.closest('.input-wrapper') || field.closest('.form-group');
+        let spinner = wrapper.querySelector('.validation-spinner');
+        
+        if (show) {
+            if (!spinner) {
+                spinner = document.createElement('div');
+                spinner.className = 'validation-spinner';
+                spinner.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                spinner.style.cssText = `
+                    position: absolute;
+                    right: 12px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    color: #6366f1;
+                    z-index: 10;
+                `;
+                wrapper.style.position = 'relative';
+                wrapper.appendChild(spinner);
+            }
+        } else {
+            if (spinner) {
+                spinner.remove();
+            }
+        }
+    }
+    
+    validateDocumentFormat(doc) {
         const cleanDoc = doc.replace(/\D/g, '');
         
         if (this.personType === 'J') {
@@ -491,14 +588,12 @@ class OnboardingApp {
         return true;
     }
     
-    // Validate all fields in a step - CRITICAL VALIDATION
     async validateStep(stepNumber) {
         const step = document.getElementById(`step${stepNumber}`);
         const requiredFields = step.querySelectorAll('input[required], select[required]');
         let isValid = true;
         let errors = [];
         
-        // Validate each field sequentially to avoid race conditions
         for (const field of requiredFields) {
             const fieldValid = await this.validateField(field);
             if (!fieldValid) {
@@ -531,7 +626,7 @@ class OnboardingApp {
             formData.append('documento', cleanDocument);
             formData.append('tipoPessoa', personType);
             
-            const response = await fetch(OnboardingConfig.endpoints.validateDocument, {
+            const response = await fetch('verificar_documento.php', {
                 method: 'POST',
                 body: formData
             });
@@ -542,21 +637,12 @@ class OnboardingApp {
             
             const result = await response.text();
             
-            // INTERPRETAÇÃO CORRETA das respostas:
-            // 'sucesso' = Documento DISPONÍVEL (NÃO existe no sistema) - PODE cadastrar
-            // 'erro' = Documento JÁ CADASTRADO (existe no sistema) - NÃO pode cadastrar
-            
-            if (result.trim() === 'sucesso') {
-                return true; // Permite cadastro
-            } else if (result.trim() === 'erro') {
-                return false; // Bloqueia cadastro
-            } else {
-                // Se a resposta for inesperada, bloquear por segurança
-                return false;
-            }
+            // 'sucesso' = Documento DISPONÍVEL (pode cadastrar)
+            // 'erro' = Documento JÁ CADASTRADO (não pode cadastrar)
+            return result.trim() === 'sucesso';
             
         } catch (error) {
-            console.error('❌ ERRO na validação de documento:', error);
+            console.error('Erro na validação de documento:', error);
             throw error;
         }
     }
@@ -566,7 +652,7 @@ class OnboardingApp {
             const formData = new FormData();
             formData.append('email', email);
             
-            const response = await fetch(OnboardingConfig.endpoints.validateEmail, {
+            const response = await fetch('verificar_email.php', {
                 method: 'POST',
                 body: formData
             });
@@ -585,6 +671,7 @@ class OnboardingApp {
         }
     }
     
+    // === CARREGAMENTO E EXIBIÇÃO DE COMBOS ===
     async loadCombos() {
         const loadingEl = document.getElementById('combosLoading');
         const swiperEl = document.getElementById('combosSwiper');
@@ -595,7 +682,7 @@ class OnboardingApp {
             swiperEl.style.display = 'none';
             noCombosEl.style.display = 'none';
             
-            const response = await fetch(OnboardingConfig.endpoints.combos);
+            const response = await fetch('buscar_combos.php');
             const result = await response.json();
             
             if (result.status === 'success' && result.data && result.data.length > 0) {
@@ -606,7 +693,6 @@ class OnboardingApp {
                 loadingEl.style.display = 'none';
                 swiperEl.style.display = 'block';
             } else {
-                // No combos available
                 loadingEl.style.display = 'none';
                 noCombosEl.style.display = 'block';
             }
@@ -633,7 +719,6 @@ class OnboardingApp {
         const discount = combo.desconto || 0;
         const originalPrice = combo.preco_original || combo.preco;
         const currentPrice = combo.preco;
-        const installments = Math.floor(currentPrice / 10); // Exemplo de parcelas
         
         return `
             <div class="combo-card" data-combo-id="${combo.id}" onclick="app.selectCombo(${index})">
@@ -641,22 +726,21 @@ class OnboardingApp {
                 <div class="combo-header">
                     <h4>${combo.nome}</h4>
                 </div>
+                ${combo.foto ? `
                 <div class="combo-image">
-                    <img src="https://vitatop.tecskill.com.br/${combo.foto}" alt="${combo.nome}" style="width: 100%; height: auto;" />
+                    <img src="https://vitatop.tecskill.com.br/${combo.foto}" alt="${combo.nome}" style="width: 100%; height: 200px; object-fit: cover; border-radius: 8px;" />
                 </div>
+                ` : ''}
                 <div class="combo-description">
-                    ${combo.descricao_app || 'Combo completo para acelerar seus resultados'}
+                    ${combo.descricao_app || combo.descricao || 'Kit completo para acelerar seus resultados como distribuidor independente'}
                 </div>
-                <!-- 
                 <ul class="combo-features">
-                    ${combo.beneficios ? combo.beneficios.map(b => `<li><i class="fas fa-check"></i> ${b}</li>`).join('') : `
-                        <li><i class="fas fa-check"></i> Kit de produtos premium</li>
-                        <li><i class="fas fa-check"></i> Material de treinamento</li>
-                        <li><i class="fas fa-check"></i> Suporte especializado</li>
-                        <li><i class="fas fa-check"></i> Estratégias de vendas</li>
-                    `}
+                    <li><i class="fas fa-check"></i> Kit de produtos premium</li>
+                    <li><i class="fas fa-check"></i> Material de treinamento exclusivo</li>
+                    <li><i class="fas fa-check"></i> Suporte especializado</li>
+                    <li><i class="fas fa-check"></i> Estratégias de vendas comprovadas</li>
+                    <li><i class="fas fa-check"></i> Acesso à comunidade VIP</li>
                 </ul>
-                -->
                 <div class="combo-price">
                     <div>
                         ${discount > 0 ? `<div class="price-original">R$ ${this.formatPrice(originalPrice)}</div>` : ''}
@@ -685,7 +769,7 @@ class OnboardingApp {
             spaceBetween: 20,
             loop: this.combos.length > 1,
             autoplay: {
-                delay: 4000,
+                delay: 5000,
                 disableOnInteraction: false,
             },
             pagination: {
@@ -717,14 +801,7 @@ class OnboardingApp {
             // Deselect the combo
             this.selectedCombo = null;
             clickedCard.classList.remove('selected');
-            
-            // Add deselection animation
-            clickedCard.style.transform = 'scale(1.02)';
-            setTimeout(() => {
-                clickedCard.style.transform = '';
-            }, 150);
-            
-            // Show success message for deselection
+            this.addSelectionFeedback(clickedCard);
             this.showSuccess('Combo desmarcado. Você pode continuar sem combo ou selecionar outro.');
         } else {
             // Remove selection from all combos
@@ -733,22 +810,12 @@ class OnboardingApp {
             });
             
             // Add selection to clicked combo
-            if (clickedCard) {
-                clickedCard.classList.add('selected');
-            }
+            clickedCard.classList.add('selected');
             
             // Store selected combo
             this.selectedCombo = this.combos[index];
             
-            // Add selection animation
-            if (clickedCard) {
-                clickedCard.style.transform = 'scale(0.98)';
-                setTimeout(() => {
-                    clickedCard.style.transform = '';
-                }, 150);
-            }
-            
-            // Show success message for selection
+            this.addSelectionFeedback(clickedCard);
             this.showSuccess(`Combo "${this.combos[index].nome}" selecionado!`);
         }
         
@@ -777,6 +844,7 @@ class OnboardingApp {
         }
     }
     
+    // === MÉTODOS DE PAGAMENTO ===
     selectPaymentMethod(methodEl) {
         // Remove selection from all methods
         document.querySelectorAll('.payment-method').forEach(method => {
@@ -796,6 +864,8 @@ class OnboardingApp {
         if (this.selectedPaymentMethod === 'card') {
             this.updateInstallments();
         }
+        
+        this.addSelectionFeedback(methodEl);
     }
     
     updatePaymentDetails() {
@@ -820,49 +890,53 @@ class OnboardingApp {
         if (installmentsSelect && comboPrice > 0) {
             installmentsSelect.innerHTML = '';
             
-            const maxInstallments = OnboardingConfig.payment.methods.card.maxInstallments;
+            const maxInstallments = 12;
+            const minInstallmentValue = 10;
+            
             for (let i = 1; i <= maxInstallments; i++) {
                 const installmentValue = comboPrice / i;
-                const option = document.createElement('option');
-                option.value = i;
-                option.textContent = `${i}x de R$ ${this.formatPrice(installmentValue)}${i === 1 ? ' sem juros' : ''}`;
-                installmentsSelect.appendChild(option);
+                if (installmentValue >= minInstallmentValue) {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.textContent = `${i}x de R$ ${this.formatPrice(installmentValue)}${i === 1 ? ' sem juros' : ''}`;
+                    installmentsSelect.appendChild(option);
+                }
             }
         }
     }
     
+    // === NAVEGAÇÃO ENTRE ETAPAS ===
     async nextStep() {
-        // Prevent multiple simultaneous validations
         if (this.validationInProgress) {
             return;
         }
         
-        // Handle different step transitions
-        if (this.currentStep === 1) {
-            await this.handleStep1();
-        } else if (this.currentStep === 2) {
-            await this.handleStep2();
-        } else if (this.currentStep === 3) {
-            await this.handleStep3();
+        switch (this.currentStep) {
+            case 1:
+                await this.handleStep1();
+                break;
+            case 2:
+                await this.handleStep2();
+                break;
+            case 3:
+                await this.handleStep3();
+                break;
         }
     }
     
     async handleStep1() {
-        // Show loading on continue button while validating
         const continueBtn = document.querySelector('#step1 .btn-primary');
         const originalHtml = continueBtn.innerHTML;
-        continueBtn.disabled = true;
-        continueBtn.classList.add('loading');
-        continueBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${OnboardingConfig.ui.loadingMessages?.validating || 'Validando...'}`;
+        
+        this.setButtonLoading(continueBtn, 'Validando dados...');
         
         try {
             this.validationInProgress = true;
             
-            // CRITICAL: Comprehensive validation of step 1
             const isValid = await this.validateStep(1);
             
             if (!isValid) {
-                this.showError(OnboardingConfig.ui.errorMessages?.validationError || 'Por favor, corrija os erros antes de continuar');
+                this.showError('Por favor, corrija os erros antes de continuar');
                 return;
             }
             
@@ -876,35 +950,26 @@ class OnboardingApp {
                 password: document.getElementById('password').value
             };
             
-            this.currentStep = 2;
-            this.showStep(2);
-            this.updateProgress();
-            this.addTransitionEffect();
+            this.goToStep(2);
             
         } catch (error) {
-            console.error('❌ ERRO CRÍTICO na validação:', error);
+            console.error('Erro na validação:', error);
             this.showError('Erro na validação. Tente novamente.');
         } finally {
-            // Reset button state
             this.validationInProgress = false;
-            continueBtn.disabled = false;
-            continueBtn.classList.remove('loading');
-            continueBtn.innerHTML = originalHtml;
+            this.resetButton(continueBtn, originalHtml);
         }
     }
     
     async handleStep2() {
-        // Show loading on continue button
         const continueBtn = document.querySelector('#step2 .btn-primary');
         const originalHtml = continueBtn.innerHTML;
-        continueBtn.disabled = true;
-        continueBtn.classList.add('loading');
-        continueBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Validando...`;
+        
+        this.setButtonLoading(continueBtn, 'Validando endereço...');
         
         try {
             this.validationInProgress = true;
             
-            // CRITICAL: Validate step 2
             const isValid = await this.validateStep(2);
             
             if (!isValid) {
@@ -923,35 +988,27 @@ class OnboardingApp {
                 state: document.getElementById('state').value.trim()
             };
             
-            this.currentStep = 3;
-            this.showStep(3);
-            this.updateProgress();
-            this.addTransitionEffect();
+            this.goToStep(3);
             
             // Load combos when entering step 3
             await this.loadCombos();
             
         } catch (error) {
-            console.error('❌ ERRO na validação:', error);
+            console.error('Erro na validação:', error);
             this.showError('Erro na validação. Tente novamente.');
         } finally {
             this.validationInProgress = false;
-            continueBtn.disabled = false;
-            continueBtn.classList.remove('loading');
-            continueBtn.innerHTML = originalHtml;
+            this.resetButton(continueBtn, originalHtml);
         }
     }
     
     async handleStep3() {
         if (this.selectedCombo) {
             // Has combo selected - go to payment
-            this.currentStep = 4;
-            this.showStep(4);
-            this.updateProgress();
+            this.goToStep(4);
             this.updatePaymentSummary();
-            this.addTransitionEffect();
         } else {
-            // No combo selected - show confirmation
+            // No combo selected - show confirmation with PNL techniques
             const confirmed = await this.showComboConfirmation();
             if (confirmed) {
                 // Proceed to finish registration without combo
@@ -960,9 +1017,12 @@ class OnboardingApp {
         }
     }
     
+    handleComboSkip() {
+        this.handleStep3();
+    }
+    
     async showComboConfirmation() {
         return new Promise((resolve) => {
-            // Create modal overlay
             const overlay = document.createElement('div');
             overlay.style.cssText = `
                 position: fixed;
@@ -970,60 +1030,91 @@ class OnboardingApp {
                 left: 0;
                 right: 0;
                 bottom: 0;
-                background: rgba(0, 0, 0, 0.5);
+                background: rgba(0, 0, 0, 0.6);
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 z-index: 10000;
-                backdrop-filter: blur(5px);
+                backdrop-filter: blur(8px);
+                animation: fadeIn 0.3s ease-out;
             `;
             
-            // Create modal
             const modal = document.createElement('div');
             modal.style.cssText = `
                 background: white;
-                padding: 32px;
-                border-radius: 16px;
-                max-width: 400px;
+                padding: 40px;
+                border-radius: 20px;
+                max-width: 500px;
                 margin: 20px;
                 text-align: center;
-                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+                box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+                animation: slideUp 0.3s ease-out;
             `;
             
             modal.innerHTML = `
-                <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
-                <h3 style="color: #1e293b; margin-bottom: 12px;">Tem certeza?</h3>
-                <p style="color: #64748b; margin-bottom: 24px; line-height: 1.5;">
-                    Você está perdendo a oportunidade de <strong>acelerar seus resultados</strong> 
-                    com nossos combos especiais. Milhares de pessoas já transformaram suas vidas com eles!
+                <div style="font-size: 64px; margin-bottom: 20px;">⚠️</div>
+                <h3 style="color: #1e293b; margin-bottom: 16px; font-size: 24px;">Atenção! Oportunidade Única</h3>
+                <p style="color: #64748b; margin-bottom: 24px; line-height: 1.6; font-size: 16px;">
+                    Você está prestes a <strong style="color: #ef4444;">perder uma oportunidade exclusiva</strong> 
+                    de acelerar seus resultados como distribuidor VitaTop! 
                 </p>
-                <div style="display: flex; gap: 12px; justify-content: center;">
+                <div style="background: #fef3c7; padding: 20px; border-radius: 12px; margin-bottom: 24px; border-left: 4px solid #f59e0b;">
+                    <p style="color: #92400e; font-weight: 600; margin-bottom: 12px;">
+                        🚀 Mais de 10.000 pessoas já transformaram suas vidas com nossos combos especiais
+                    </p>
+                    <p style="color: #78350f; font-size: 14px;">
+                        • Ganhos até 300% maiores no primeiro mês<br>
+                        • Suporte premium 24/7<br>
+                        • Estratégias exclusivas de vendas<br>
+                        • Material de treinamento avançado
+                    </p>
+                </div>
+                <p style="color: #dc2626; font-weight: 600; margin-bottom: 24px; font-size: 18px;">
+                    ⏰ Esta oferta expira em poucos minutos!
+                </p>
+                <div style="display: flex; gap: 12px; justify-content: center; flex-direction: column;">
                     <button id="goBackBtn" style="
-                        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                        background: linear-gradient(135deg, #7cbe42 0%, #00591f 100%);
                         color: white;
+                        border: none;
+                        padding: 16px 32px;
+                        border-radius: 12px;
+                        font-weight: 700;
+                        cursor: pointer;
+                        font-size: 16px;
+                        box-shadow: 0 4px 12px rgba(124, 190, 66, 0.3);
+                        transition: all 0.2s ease;
+                    ">🎯 Sim! Quero ver os combos e acelerar meus resultados</button>
+                    <button id="continueBtn" style="
+                        background: transparent;
+                        color: #94a3b8;
                         border: none;
                         padding: 12px 24px;
                         border-radius: 8px;
-                        font-weight: 600;
+                        font-weight: 500;
                         cursor: pointer;
-                    ">Ver Combos</button>
-                    <button id="continueBtn" style="
-                        background: white;
-                        color: #64748b;
-                        border: 2px solid #e2e8f0;
-                        padding: 12px 24px;
-                        border-radius: 8px;
-                        font-weight: 600;
-                        cursor: pointer;
-                    ">Continuar sem combo</button>
+                        font-size: 14px;
+                        text-decoration: underline;
+                    ">Não, prefiro começar sem vantagens</button>
                 </div>
             `;
             
             overlay.appendChild(modal);
             document.body.appendChild(overlay);
             
+            // Add hover effects
+            const goBackBtn = modal.querySelector('#goBackBtn');
+            goBackBtn.addEventListener('mouseenter', () => {
+                goBackBtn.style.transform = 'translateY(-2px)';
+                goBackBtn.style.boxShadow = '0 6px 20px rgba(124, 190, 66, 0.4)';
+            });
+            goBackBtn.addEventListener('mouseleave', () => {
+                goBackBtn.style.transform = '';
+                goBackBtn.style.boxShadow = '0 4px 12px rgba(124, 190, 66, 0.3)';
+            });
+            
             // Add event listeners
-            modal.querySelector('#goBackBtn').addEventListener('click', () => {
+            goBackBtn.addEventListener('click', () => {
                 document.body.removeChild(overlay);
                 resolve(false);
             });
@@ -1061,29 +1152,95 @@ class OnboardingApp {
         
         const paymentButton = document.getElementById('paymentButton');
         const originalHtml = paymentButton.innerHTML;
-        paymentButton.disabled = true;
-        paymentButton.classList.add('loading');
-        paymentButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${OnboardingConfig.ui.loadingMessages.processingPayment}`;
+        
+        this.setButtonLoading(paymentButton, 'Processando pagamento...');
         
         try {
             // Validate card fields if card payment
             if (this.selectedPaymentMethod === 'card') {
-                const cardFields = ['cardNumber', 'cardName', 'cardExpiry', 'cardCVV'];
-                for (const fieldId of cardFields) {
-                    const field = document.getElementById(fieldId);
-                    if (!field.value.trim()) {
-                        this.showError('Preencha todos os dados do cartão');
-                        return;
-                    }
+                if (!this.validateCardFields()) {
+                    return;
                 }
             }
             
-            // Prepare payment data
+            // First, register the user to get pessoa_id and endereco_id
+            const registrationResult = await this.processRegistration();
+            
+            if (!registrationResult.success) {
+                this.showError(registrationResult.message || 'Erro no cadastro');
+                return;
+            }
+            
+            // Now process payment with the registration data
+            const paymentResult = await this.submitPayment(registrationResult.data);
+            
+            if (paymentResult.success) {
+                this.showSuccessStep(true);
+            } else {
+                this.showError(paymentResult.message || 'Erro ao processar pagamento');
+            }
+            
+        } catch (error) {
+            console.error('Erro no pagamento:', error);
+            this.showError('Erro ao processar pagamento. Tente novamente.');
+        } finally {
+            this.resetButton(paymentButton, originalHtml);
+        }
+    }
+    
+    validateCardFields() {
+        const cardFields = ['cardNumber', 'cardName', 'cardExpiry', 'cardCVV'];
+        
+        for (const fieldId of cardFields) {
+            const field = document.getElementById(fieldId);
+            if (!field.value.trim()) {
+                this.showFieldError(field, 'Este campo é obrigatório');
+                return false;
+            }
+        }
+        
+        // Validate card number
+        const cardNumber = document.getElementById('cardNumber').value.replace(/\D/g, '');
+        if (cardNumber.length < 13 || cardNumber.length > 19) {
+            this.showFieldError(document.getElementById('cardNumber'), 'Número do cartão inválido');
+            return false;
+        }
+        
+        // Validate expiry
+        const expiry = document.getElementById('cardExpiry').value;
+        if (!/^\d{2}\/\d{2}$/.test(expiry)) {
+            this.showFieldError(document.getElementById('cardExpiry'), 'Data de validade inválida');
+            return false;
+        }
+        
+        const [month, year] = expiry.split('/');
+        const currentDate = new Date();
+        const expiryDate = new Date(2000 + parseInt(year), parseInt(month) - 1);
+        
+        if (expiryDate < currentDate) {
+            this.showFieldError(document.getElementById('cardExpiry'), 'Cartão expirado');
+            return false;
+        }
+        
+        // Validate CVV
+        const cvv = document.getElementById('cardCVV').value;
+        if (cvv.length < 3 || cvv.length > 4) {
+            this.showFieldError(document.getElementById('cardCVV'), 'CVV inválido');
+            return false;
+        }
+        
+        return true;
+    }
+    
+    async submitPayment(registrationData) {
+        try {
             const paymentData = new FormData();
             paymentData.append('action', 'process_payment');
             paymentData.append('comboId', this.selectedCombo.id);
             paymentData.append('paymentMethod', this.selectedPaymentMethod);
             paymentData.append('valor', this.selectedCombo.preco);
+            paymentData.append('pessoaId', registrationData.pessoa_id);
+            paymentData.append('enderecoId', registrationData.endereco_id);
             
             // Add card data if needed
             if (this.selectedPaymentMethod === 'card') {
@@ -1094,27 +1251,25 @@ class OnboardingApp {
                 paymentData.append('installments', document.getElementById('installments').value || 1);
             }
             
-            // Submit payment
-            const response = await fetch(OnboardingConfig.endpoints.payment, {
+            const response = await fetch('ajax_handler.php', {
                 method: 'POST',
                 body: paymentData
             });
             
             const result = await response.json();
             
-            if (result.status === 'success') {
-                this.showSuccessStep(true);
-            } else {
-                this.showError(result.message || OnboardingConfig.ui.errorMessages.paymentError);
-            }
+            return {
+                success: result.status === 'success',
+                message: result.message,
+                data: result.data
+            };
             
         } catch (error) {
-            console.error('❌ ERRO no pagamento:', error);
-            this.showError(OnboardingConfig.ui.errorMessages.paymentError);
-        } finally {
-            paymentButton.disabled = false;
-            paymentButton.classList.remove('loading');
-            paymentButton.innerHTML = originalHtml;
+            console.error('Erro no pagamento:', error);
+            return {
+                success: false,
+                message: 'Erro na comunicação com o servidor'
+            };
         }
     }
     
@@ -1125,6 +1280,13 @@ class OnboardingApp {
             this.updateProgress();
             this.addTransitionEffect();
         }
+    }
+    
+    goToStep(stepNumber) {
+        this.currentStep = stepNumber;
+        this.showStep(stepNumber);
+        this.updateProgress();
+        this.addTransitionEffect();
     }
     
     showStep(stepNumber) {
@@ -1156,54 +1318,47 @@ class OnboardingApp {
         }
     }
     
+    // === PROCESSAMENTO DE CADASTRO ===
     async finishRegistration() {
-        // Prevent multiple simultaneous submissions
         if (this.validationInProgress) {
             return;
         }
         
-        // Show loading state
         const submitButton = document.querySelector('#step3 .btn-primary');
         const originalHtml = submitButton.innerHTML;
-        submitButton.disabled = true;
-        submitButton.classList.add('loading');
-        submitButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${OnboardingConfig.ui.loadingMessages?.registering || 'Finalizando cadastro...'}`;
+        
+        this.setButtonLoading(submitButton, 'Finalizando cadastro...');
         
         try {
             this.validationInProgress = true;
             
-            // FINAL VALIDATION BEFORE REGISTRATION
             if (!this.userData.name || !this.userData.email || !this.userData.document || 
                 !this.userData.password || !this.userData.phone) {
                 throw new Error('Dados obrigatórios faltando');
             }
             
-            // Process registration
-            await this.processRegistration();
+            const result = await this.processRegistration();
             
-            // Show success step
-            this.showSuccessStep(false);
+            if (result.success) {
+                this.showSuccessStep(false);
+            } else {
+                this.showError(result.message || 'Erro ao finalizar cadastro');
+            }
             
         } catch (error) {
-            console.error('❌ ERRO CRÍTICO no cadastro:', error);
-            this.showError(OnboardingConfig.ui.errorMessages?.registrationError || 'Erro ao finalizar cadastro. Tente novamente.');
+            console.error('Erro no cadastro:', error);
+            this.showError('Erro ao finalizar cadastro. Tente novamente.');
         } finally {
             this.validationInProgress = false;
-            submitButton.disabled = false;
-            submitButton.classList.remove('loading');
-            submitButton.innerHTML = originalHtml;
+            this.resetButton(submitButton, originalHtml);
         }
     }
     
     async processRegistration() {
         try {
-            // Prepare form data according to ajax_handler.php structure
             const formData = new FormData();
             
-            // Add action identifier for AJAX handler
             formData.append('action', 'register');
-            
-            // Add all required fields
             formData.append('tipoPessoa', this.userData.personType);
             formData.append('nomeAfiliado', this.userData.name);
             formData.append('razaoSocial', this.userData.personType === 'J' ? this.userData.name : '');
@@ -1240,8 +1395,7 @@ class OnboardingApp {
                 formData.append('idProduto', this.selectedCombo.id);
             }
             
-            // Submit to ajax_handler.php for JSON response
-            const response = await fetch(OnboardingConfig.endpoints.register, {
+            const response = await fetch('ajax_handler.php', {
                 method: 'POST',
                 body: formData
             });
@@ -1250,7 +1404,6 @@ class OnboardingApp {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
-            // Parse JSON response
             let result;
             try {
                 const responseText = await response.text();
@@ -1261,17 +1414,25 @@ class OnboardingApp {
             }
             
             if (result.status === 'success') {
-                this.registrationSuccess = true;
-                this.successRedirect = result.redirect;
-                return true;
+                this.registrationResponse = result;
+                return {
+                    success: true,
+                    message: result.message,
+                    data: result.data || {}
+                };
             } else {
-                console.log('❌ CADASTRO FALHOU:', result.message);
-                throw new Error(result.message || 'Erro no cadastro');
+                return {
+                    success: false,
+                    message: result.message || 'Erro no cadastro'
+                };
             }
             
         } catch (error) {
-            console.error('❌ ERRO no processamento do cadastro:', error);
-            throw error;
+            console.error('Erro no processamento do cadastro:', error);
+            return {
+                success: false,
+                message: error.message || 'Erro interno no cadastro'
+            };
         }
     }
     
@@ -1314,37 +1475,29 @@ class OnboardingApp {
             paymentSuccessItem.style.display = hasPayment ? 'flex' : 'none';
         }
         
-        // Set app link
-        const appLinks = document.querySelectorAll('a[href*="appvitatop"]');
-        appLinks.forEach(link => {
-            if (this.successRedirect && this.successRedirect !== 'success') {
-                link.href = this.successRedirect;
-            }
-        });
-        
         // Add confetti effect
         this.showConfetti();
     }
     
     showConfetti() {
-        // Simple confetti effect
-        const colors = ['#667eea', '#764ba2', '#10b981', '#f59e0b'];
+        const colors = ['#7cbe42', '#00591f', '#10b981', '#f59e0b'];
         
-        for (let i = 0; i < 50; i++) {
+        for (let i = 0; i < 60; i++) {
             const confetti = document.createElement('div');
-            confetti.style.position = 'fixed';
-            confetti.style.width = '10px';
-            confetti.style.height = '10px';
-            confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-            confetti.style.left = Math.random() * 100 + 'vw';
-            confetti.style.top = '-10px';
-            confetti.style.zIndex = '9999';
-            confetti.style.pointerEvents = 'none';
-            confetti.style.borderRadius = '50%';
+            confetti.style.cssText = `
+                position: fixed;
+                width: 10px;
+                height: 10px;
+                background: ${colors[Math.floor(Math.random() * colors.length)]};
+                left: ${Math.random() * 100}vw;
+                top: -10px;
+                z-index: 9999;
+                pointer-events: none;
+                border-radius: 50%;
+            `;
             
             document.body.appendChild(confetti);
             
-            // Animate confetti
             confetti.animate([
                 { transform: 'translateY(-10px) rotate(0deg)', opacity: 1 },
                 { transform: `translateY(100vh) rotate(720deg)`, opacity: 0 }
@@ -1360,16 +1513,18 @@ class OnboardingApp {
     startOver() {
         // Reset everything
         this.currentStep = 1;
-        this.totalSteps = 4;
         this.userData = {};
         this.personType = 'F';
         this.validationInProgress = false;
         this.selectedCombo = null;
         this.selectedPaymentMethod = null;
+        this.registrationResponse = null;
         
-        // Reset form
+        // Reset forms
         document.querySelectorAll('input').forEach(input => {
-            input.value = '';
+            if (input.id !== 'name' && input.id !== 'email' && input.id !== 'phone') {
+                input.value = '';
+            }
             this.clearFieldError(input);
         });
         
@@ -1413,50 +1568,25 @@ class OnboardingApp {
         this.updateDocumentField();
     }
     
+    // === UTILITÁRIOS DE UI ===
+    setButtonLoading(button, text) {
+        button.disabled = true;
+        button.classList.add('loading');
+        button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${text}`;
+    }
+    
+    resetButton(button, originalHtml) {
+        button.disabled = false;
+        button.classList.remove('loading');
+        button.innerHTML = originalHtml;
+    }
+    
     showSuccess(message) {
-        // Create toast notification
-        const toast = document.createElement('div');
-        toast.className = 'toast success';
-        toast.innerHTML = `<i class="fas fa-check"></i> ${message}`;
-        toast.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #10b981;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            z-index: 10000;
-            animation: slideIn 0.3s ease-out;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        `;
-        
-        document.body.appendChild(toast);
-        
-        setTimeout(() => {
-            toast.remove();
-        }, 3000);
+        this.showToast(message, 'success');
     }
     
     showError(message) {
-        // Create toast notification
-        const toast = document.createElement('div');
-        toast.className = 'toast error';
-        toast.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${message}`;
-        toast.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #ef4444;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            z-index: 10000;
-            animation: slideIn 0.3s ease-out;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        `;
-        
-        document.body.appendChild(toast);
+        this.showToast(message, 'error');
         
         // Add shake effect to container
         const container = document.querySelector('.container');
@@ -1466,14 +1596,46 @@ class OnboardingApp {
                 container.classList.remove('shake');
             }, 500);
         }
+    }
+    
+    showToast(message, type) {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
         
+        const icon = type === 'success' ? 'fas fa-check' : 'fas fa-exclamation-triangle';
+        toast.innerHTML = `<i class="${icon}"></i> ${message}`;
+        
+        const bgColor = type === 'success' ? '#10b981' : '#ef4444';
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${bgColor};
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 10000;
+            animation: slideIn 0.3s ease-out;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+            max-width: 350px;
+        `;
+        
+        document.body.appendChild(toast);
+        
+        const duration = type === 'error' ? 4000 : 3000;
         setTimeout(() => {
-            toast.remove();
-        }, 4000);
+            if (toast.parentNode) {
+                toast.remove();
+            }
+        }, duration);
     }
 }
 
-// Utility functions for global access
+// === FUNÇÕES GLOBAIS ===
 function togglePassword(fieldId) {
     const field = document.getElementById(fieldId);
     const toggle = field.nextElementSibling;
@@ -1521,7 +1683,7 @@ function startOver() {
     }
 }
 
-// Add CSS for animations and loading states
+// === ESTILOS CSS DINÂMICOS ===
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideIn {
@@ -1531,6 +1693,22 @@ style.textContent = `
         }
         to {
             transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    @keyframes slideUp {
+        from {
+            transform: translateY(30px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
             opacity: 1;
         }
     }
@@ -1588,6 +1766,18 @@ style.textContent = `
         display: flex;
         align-items: center;
         gap: 5px;
+        animation: slideDown 0.3s ease-out;
+    }
+    
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
     
     .error-message i {
@@ -1601,6 +1791,7 @@ style.textContent = `
         font-weight: 500;
         border-radius: 8px;
         backdrop-filter: blur(10px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
     }
     
     .toast.success {
@@ -1611,32 +1802,27 @@ style.textContent = `
         background: linear-gradient(135deg, #ef4444, #dc2626);
     }
     
-    /* Loading state for validation */
+    .validation-spinner {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6366f1;
+        z-index: 10;
+    }
+    
     .validation-loading {
         position: relative;
     }
     
-    .validation-loading::after {
-        content: '';
-        position: absolute;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 16px;
-        height: 16px;
-        border: 2px solid #e5e7eb;
-        border-top: 2px solid #6366f1;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-    }
-    
-    /* Smooth transitions */
+    /* Smooth transitions for all interactive elements */
     .input-wrapper input,
-    .input-wrapper select {
-        transition: all 0.2s ease;
-    }
-    
-    .btn-primary {
+    .input-wrapper select,
+    .btn-primary,
+    .btn-secondary,
+    .person-type-option,
+    .combo-card,
+    .payment-method {
         transition: all 0.2s ease;
     }
     
@@ -1647,10 +1833,6 @@ style.textContent = `
     
     .step {
         transition: all 0.3s ease;
-    }
-    
-    .person-type-option {
-        transition: all 0.2s ease;
     }
     
     .person-type-option:hover {
@@ -1664,20 +1846,254 @@ style.textContent = `
     
     .combo-card {
         transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .combo-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+    
+    .combo-card.selected {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 25px rgba(124, 190, 66, 0.2);
+        border-color: #7cbe42 !important;
     }
     
     .payment-method {
         transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .payment-method:hover {
+        border-color: #7cbe42;
+        background: rgba(124, 190, 66, 0.05);
+    }
+    
+    .payment-method.selected {
+        border-color: #7cbe42 !important;
+        background: rgba(124, 190, 66, 0.1) !important;
+    }
+    
+    /* Enhanced loading states */
+    .combos-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        color: #64748b;
+    }
+    
+    .combos-loading i {
+        font-size: 32px;
+        margin-bottom: 16px;
+        color: #7cbe42;
+    }
+    
+    /* Success animation improvements */
+    .success-circle {
+        animation: successPulse 1s ease-out;
+    }
+    
+    @keyframes successPulse {
+        0% {
+            transform: scale(0);
+            opacity: 0;
+        }
+        50% {
+            transform: scale(1.1);
+        }
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+    
+    /* Enhanced combo card styling */
+    .combo-card.selected::before {
+        content: '✓ Selecionado';
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #7cbe42;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        z-index: 2;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.7;
+        }
+    }
+    
+    /* Enhanced form field focus states */
+    .input-wrapper input:focus,
+    .input-wrapper select:focus {
+        outline: none;
+        border-color: #7cbe42 !important;
+        box-shadow: 0 0 0 3px rgba(124, 190, 66, 0.1) !important;
+    }
+    
+    /* Improved password toggle */
+    .toggle-password {
+        position: absolute;
+        right: 16px;
+        background: none;
+        border: none;
+        color: #94a3b8;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .toggle-password:hover {
+        color: #64748b;
+        background: rgba(0, 0, 0, 0.05);
+    }
+    
+    /* Enhanced progress bar */
+    .progress-fill {
+        background: linear-gradient(135deg, #7cbe42 0%, #00591f 100%);
+        transition: width 0.5s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .progress-fill::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.3),
+            transparent
+        );
+        animation: shimmer 2s infinite;
+    }
+    
+    @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+    }
+    
+    /* Mobile responsiveness improvements */
+    @media (max-width: 768px) {
+        .combo-card {
+            margin-bottom: 16px;
+        }
+        
+        .payment-method {
+            margin-bottom: 12px;
+        }
+        
+        .form-row {
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+        
+        .form-actions {
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        
+        .toast {
+            left: 20px;
+            right: 20px;
+            max-width: none;
+        }
+    }
+    
+    /* Custom scrollbar for better UX */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
     }
 `;
 document.head.appendChild(style);
 
-// Initialize app when DOM is loaded
+// === INICIALIZAÇÃO ===
 document.addEventListener('DOMContentLoaded', () => {
     try {
         window.app = new OnboardingApp();
-        console.log('Onboarding app initialized successfully');
+        console.log('✅ Sistema de onboarding VitaTop inicializado com sucesso');
+        
+        // Add some initial visual feedback
+        const container = document.querySelector('.container');
+        if (container) {
+            container.style.opacity = '0';
+            container.style.transform = 'translateY(20px)';
+            
+            setTimeout(() => {
+                container.style.transition = 'all 0.6s ease-out';
+                container.style.opacity = '1';
+                container.style.transform = 'translateY(0)';
+            }, 100);
+        }
+        
     } catch (error) {
-        console.error('Error initializing onboarding app:', error);
+        console.error('❌ Erro ao inicializar o sistema de onboarding:', error);
+        
+        // Show fallback error message
+        document.body.innerHTML = `
+            <div style="
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                background: linear-gradient(135deg, #7cbe42 0%, #00591f 100%);
+                font-family: Inter, sans-serif;
+                color: white;
+                text-align: center;
+                padding: 20px;
+            ">
+                <div style="
+                    background: rgba(255, 255, 255, 0.1);
+                    padding: 40px;
+                    border-radius: 16px;
+                    backdrop-filter: blur(10px);
+                ">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 20px;"></i>
+                    <h2>Oops! Algo deu errado</h2>
+                    <p>Tente recarregar a página ou entre em contato conosco.</p>
+                    <button onclick="location.reload()" style="
+                        background: white;
+                        color: #00591f;
+                        border: none;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        margin-top: 20px;
+                    ">Recarregar Página</button>
+                </div>
+            </div>
+        `;
     }
 });
