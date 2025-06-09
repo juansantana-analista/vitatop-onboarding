@@ -326,9 +326,9 @@ function processarPagamento($location, $rest_key, $paymentData)
 {
     // Dados a serem enviados no corpo da requisição
     $requestData = [
-        'class' => 'PagamentoRestService',
-        'method' => 'processarPagamento',
-        'dados' => $paymentData
+        'class' => 'PagamentoSafe2payRest',
+        'method' => 'ComprarKit',
+        'data' => $paymentData
     ];
 
     // Inicializa o cURL

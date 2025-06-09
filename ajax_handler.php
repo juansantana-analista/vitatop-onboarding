@@ -296,20 +296,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Prepare payment data with user information
         $paymentData = [
-            'pessoaId' => $_POST['pessoaId'],
-            'enderecoId' => $_POST['enderecoId'] ?? null,
-            'comboId' => $_POST['comboId'],
-            'paymentMethod' => $_POST['paymentMethod'],
+            'pessoa_id' => $_POST['pessoaId'],
+            'endereco_entrega_id' => $_POST['enderecoId'] ?? null,
+            'produto_id' => $_POST['comboId'],
+            'opcao_pagamento' => $_POST['paymentMethod'],
             'valor' => $_POST['valor'] ?? 0
         ];
         
         // Add card data if needed
         if ($_POST['paymentMethod'] === 'card') {
             $paymentData['cardData'] = [
-                'number' => preg_replace('/\D/', '', $_POST['cardNumber']),
-                'name' => trim($_POST['cardName']),
-                'expiry' => $_POST['cardExpiry'],
-                'cvv' => $_POST['cardCVV'],
+                'numero_cartao' => preg_replace('/\D/', '', $_POST['cardNumber']),
+                'nome_cartao' => trim($_POST['cardName']),
+                'validade_cartao' => $_POST['cardExpiry'],
+                'cvc_cartao' => $_POST['cardCVV'],
                 'installments' => $_POST['installments'] ?? 1
             ];
         }
