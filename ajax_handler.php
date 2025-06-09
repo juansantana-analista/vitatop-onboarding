@@ -184,12 +184,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             exit;
         }
-        
-        // Check if product ID is provided
-        $produtoId = null;
-        if (isset($_POST['idProduto']) && !empty($_POST['idProduto'])) {
-            $produtoId = $_POST['idProduto'];
-        }
 
         // Prepare form data
         $formData = [
@@ -235,22 +229,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Store email in session for success page
                 $_SESSION['email'] = $_POST['email'];
                 
-                if ($produtoId) {
-                    $_SESSION['produtoId'] = $produtoId;
-                    $_SESSION['pessoaId'] = $response['data']['data']['pessoa_id'] ?? null;
-                    
-                    echo json_encode([
-                        'status' => 'success',
-                        'redirect' => 'payment',
-                        'message' => 'Cadastro realizado com sucesso! Redirecionando para pagamento...'
-                    ]);
-                } else {
-                    echo json_encode([
-                        'status' => 'success',
-                        'redirect' => 'success',
-                        'message' => 'Cadastro realizado com sucesso!'
-                    ]);
-                }
+                // Return registration success with user IDs
+                echo json_encode([
+                    'status' => 'success',
+                    'message' => 'Cadastro realizado com sucesso!',
+                    'data' => $response['data'] ?? []
+                ]);
             } else {
                 // Log the error for debugging
                 error_log('Registration error: ' . print_r($response, true));
@@ -274,7 +258,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     else if (isset($_POST['action']) && $_POST['action'] === 'process_payment') {
         
         // Validate required payment fields
-        $requiredPaymentFields = ['paymentMethod', 'comboId'];
+        $requiredPaymentFields = ['paymentMethod', 'pessoaId', 'comboId'];
         
         $fieldErrors = validateRequiredFields($_POST, $requiredPaymentFields);
         if (!empty($fieldErrors)) {
@@ -310,9 +294,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        // Prepare payment data
+        // Prepare payment data with user information
         $paymentData = [
-            'pessoaId' => $_SESSION['pessoaId'] ?? null,
+            'pessoaId' => $_POST['pessoaId'],
+            'enderecoId' => $_POST['enderecoId'] ?? null,
             'comboId' => $_POST['comboId'],
             'paymentMethod' => $_POST['paymentMethod'],
             'valor' => $_POST['valor'] ?? 0

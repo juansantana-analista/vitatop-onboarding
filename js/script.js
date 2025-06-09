@@ -10,6 +10,7 @@ class OnboardingApp {
         this.combos = [];
         this.selectedPaymentMethod = null;
         this.swiperInstance = null;
+        this.registeredUser = null; // Store user data after registration
         
         this.init();
     }
@@ -942,105 +943,69 @@ class OnboardingApp {
         }
     }
     
+    // NOVO FLUXO: Realizar cadastro na step 3 independente da seleção de combo
     async handleStep3() {
-        if (this.selectedCombo) {
-            // Has combo selected - go to payment
-            this.currentStep = 4;
-            this.showStep(4);
-            this.updateProgress();
-            this.updatePaymentSummary();
-            this.addTransitionEffect();
-        } else {
-            // No combo selected - show confirmation
-            const confirmed = await this.showComboConfirmation();
-            if (confirmed) {
-                // Proceed to finish registration without combo
-                await this.finishRegistration();
-            }
+        // Prevent multiple simultaneous registrations
+        if (this.validationInProgress) {
+            return;
         }
-    }
-    
-    async showComboConfirmation() {
-        return new Promise((resolve) => {
-            // Create modal overlay
-            const overlay = document.createElement('div');
-            overlay.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: rgba(0, 0, 0, 0.5);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 10000;
-                backdrop-filter: blur(5px);
-            `;
+        
+        // Show loading state
+        const submitButton = this.selectedCombo ? 
+            document.getElementById('continueWithCombo') : 
+            document.getElementById('continueWithoutCombo');
+        
+        const originalHtml = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.classList.add('loading');
+        submitButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Realizando cadastro...`;
+        
+        try {
+            this.validationInProgress = true;
             
-            // Create modal
-            const modal = document.createElement('div');
-            modal.style.cssText = `
-                background: white;
-                padding: 32px;
-                border-radius: 16px;
-                max-width: 400px;
-                margin: 20px;
-                text-align: center;
-                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-            `;
+            // FINAL VALIDATION BEFORE REGISTRATION
+            if (!this.userData.name || !this.userData.email || !this.userData.document || 
+                !this.userData.password || !this.userData.phone || !this.userData.address) {
+                throw new Error('Dados obrigatórios faltando');
+            }
             
-            modal.innerHTML = `
-                <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
-                <h3 style="color: #1e293b; margin-bottom: 12px;">Tem certeza?</h3>
-                <p style="color: #64748b; margin-bottom: 24px; line-height: 1.5;">
-                    Você está perdendo a oportunidade de <strong>acelerar seus resultados</strong> 
-                    com nossos combos especiais. Milhares de pessoas já transformaram suas vidas com eles!
-                </p>
-                <div style="display: flex; gap: 12px; justify-content: center;">
-                    <button id="goBackBtn" style="
-                        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-                        color: white;
-                        border: none;
-                        padding: 12px 24px;
-                        border-radius: 8px;
-                        font-weight: 600;
-                        cursor: pointer;
-                    ">Ver Combos</button>
-                    <button id="continueBtn" style="
-                        background: white;
-                        color: #64748b;
-                        border: 2px solid #e2e8f0;
-                        padding: 12px 24px;
-                        border-radius: 8px;
-                        font-weight: 600;
-                        cursor: pointer;
-                    ">Continuar sem combo</button>
-                </div>
-            `;
+            // Process registration
+            const registrationResult = await this.processRegistration();
             
-            overlay.appendChild(modal);
-            document.body.appendChild(overlay);
-            
-            // Add event listeners
-            modal.querySelector('#goBackBtn').addEventListener('click', () => {
-                document.body.removeChild(overlay);
-                resolve(false);
-            });
-            
-            modal.querySelector('#continueBtn').addEventListener('click', () => {
-                document.body.removeChild(overlay);
-                resolve(true);
-            });
-            
-            // Close on overlay click
-            overlay.addEventListener('click', (e) => {
-                if (e.target === overlay) {
-                    document.body.removeChild(overlay);
-                    resolve(false);
+            if (registrationResult.success) {
+                // Store registered user data
+                this.registeredUser = {
+                    pessoa_id: registrationResult.data.pessoa_id,
+                    endereco_id: registrationResult.data.endereco_id,
+                    email: this.userData.email
+                };
+                
+                // Check if combo was selected
+                if (this.selectedCombo) {
+                    // Go to payment step
+                    this.currentStep = 4;
+                    this.showStep(4);
+                    this.updateProgress();
+                    this.updatePaymentSummary();
+                    this.addTransitionEffect();
+                    this.showSuccess('Cadastro realizado! Finalize o pagamento do seu combo.');
+                } else {
+                    // Show success step directly
+                    this.showSuccessStep(false);
                 }
-            });
-        });
+            } else {
+                throw new Error(registrationResult.message || 'Erro no cadastro');
+            }
+            
+        } catch (error) {
+            console.error('❌ ERRO CRÍTICO no cadastro:', error);
+            this.showError(OnboardingConfig.ui.errorMessages?.registrationError || 'Erro ao finalizar cadastro. Tente novamente.');
+        } finally {
+            this.validationInProgress = false;
+            submitButton.disabled = false;
+            submitButton.classList.remove('loading');
+            submitButton.innerHTML = originalHtml;
+        }
     }
     
     updatePaymentSummary() {
@@ -1078,9 +1043,11 @@ class OnboardingApp {
                 }
             }
             
-            // Prepare payment data
+            // Prepare payment data with registered user info
             const paymentData = new FormData();
             paymentData.append('action', 'process_payment');
+            paymentData.append('pessoaId', this.registeredUser.pessoa_id);
+            paymentData.append('enderecoId', this.registeredUser.endereco_id);
             paymentData.append('comboId', this.selectedCombo.id);
             paymentData.append('paymentMethod', this.selectedPaymentMethod);
             paymentData.append('valor', this.selectedCombo.preco);
@@ -1156,45 +1123,6 @@ class OnboardingApp {
         }
     }
     
-    async finishRegistration() {
-        // Prevent multiple simultaneous submissions
-        if (this.validationInProgress) {
-            return;
-        }
-        
-        // Show loading state
-        const submitButton = document.querySelector('#step3 .btn-primary');
-        const originalHtml = submitButton.innerHTML;
-        submitButton.disabled = true;
-        submitButton.classList.add('loading');
-        submitButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${OnboardingConfig.ui.loadingMessages?.registering || 'Finalizando cadastro...'}`;
-        
-        try {
-            this.validationInProgress = true;
-            
-            // FINAL VALIDATION BEFORE REGISTRATION
-            if (!this.userData.name || !this.userData.email || !this.userData.document || 
-                !this.userData.password || !this.userData.phone) {
-                throw new Error('Dados obrigatórios faltando');
-            }
-            
-            // Process registration
-            await this.processRegistration();
-            
-            // Show success step
-            this.showSuccessStep(false);
-            
-        } catch (error) {
-            console.error('❌ ERRO CRÍTICO no cadastro:', error);
-            this.showError(OnboardingConfig.ui.errorMessages?.registrationError || 'Erro ao finalizar cadastro. Tente novamente.');
-        } finally {
-            this.validationInProgress = false;
-            submitButton.disabled = false;
-            submitButton.classList.remove('loading');
-            submitButton.innerHTML = originalHtml;
-        }
-    }
-    
     async processRegistration() {
         try {
             // Prepare form data according to ajax_handler.php structure
@@ -1235,11 +1163,6 @@ class OnboardingApp {
             formData.append('cidade', this.userData.address.city);
             formData.append('estado', this.userData.address.state);
             
-            // Add combo ID if selected
-            if (this.selectedCombo) {
-                formData.append('idProduto', this.selectedCombo.id);
-            }
-            
             // Submit to ajax_handler.php for JSON response
             const response = await fetch(OnboardingConfig.endpoints.register, {
                 method: 'POST',
@@ -1261,17 +1184,24 @@ class OnboardingApp {
             }
             
             if (result.status === 'success') {
-                this.registrationSuccess = true;
-                this.successRedirect = result.redirect;
-                return true;
+                return {
+                    success: true,
+                    data: result.data || {}
+                };
             } else {
                 console.log('❌ CADASTRO FALHOU:', result.message);
-                throw new Error(result.message || 'Erro no cadastro');
+                return {
+                    success: false,
+                    message: result.message || 'Erro no cadastro'
+                };
             }
             
         } catch (error) {
             console.error('❌ ERRO no processamento do cadastro:', error);
-            throw error;
+            return {
+                success: false,
+                message: error.message || 'Erro interno no cadastro'
+            };
         }
     }
     
@@ -1304,8 +1234,8 @@ class OnboardingApp {
         
         // Fill success details
         const registeredEmail = document.getElementById('registeredEmail');
-        if (registeredEmail) {
-            registeredEmail.textContent = this.userData.email;
+        if (registeredEmail && this.registeredUser) {
+            registeredEmail.textContent = this.registeredUser.email;
         }
         
         // Show payment success item if payment was made
@@ -1313,14 +1243,6 @@ class OnboardingApp {
         if (paymentSuccessItem) {
             paymentSuccessItem.style.display = hasPayment ? 'flex' : 'none';
         }
-        
-        // Set app link
-        const appLinks = document.querySelectorAll('a[href*="appvitatop"]');
-        appLinks.forEach(link => {
-            if (this.successRedirect && this.successRedirect !== 'success') {
-                link.href = this.successRedirect;
-            }
-        });
         
         // Add confetti effect
         this.showConfetti();
@@ -1366,6 +1288,7 @@ class OnboardingApp {
         this.validationInProgress = false;
         this.selectedCombo = null;
         this.selectedPaymentMethod = null;
+        this.registeredUser = null;
         
         // Reset form
         document.querySelectorAll('input').forEach(input => {
@@ -1500,12 +1423,6 @@ function nextStep() {
 function prevStep() {
     if (window.app) {
         window.app.prevStep();
-    }
-}
-
-function finishRegistration() {
-    if (window.app) {
-        window.app.finishRegistration();
     }
 }
 
