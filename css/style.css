@@ -927,3 +927,245 @@ body {
     background: var(--accent);
     border-radius: 2px;
 }
+
+/* Payment Result Styles */
+.payment-result {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.payment-success-header {
+    margin-bottom: 32px;
+}
+
+.payment-success-header h2 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.payment-success-header p {
+    color: var(--text-secondary);
+    font-size: 16px;
+    margin-bottom: 24px;
+}
+
+.success-circle.approved {
+    background: var(--success);
+}
+
+.success-circle.pending {
+    background: var(--warning);
+}
+
+.payment-details {
+    background: var(--secondary);
+    border-radius: var(--border-radius);
+    padding: 24px;
+    margin-bottom: 24px;
+    text-align: left;
+}
+
+.payment-summary {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.summary-item:last-child {
+    border-bottom: none;
+}
+
+.summary-item span {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.summary-item strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.status-pending {
+    color: var(--warning) !important;
+}
+
+.status-approved {
+    color: var(--success) !important;
+}
+
+/* PIX Styles */
+.pix-qrcode {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.pix-qrcode h3 {
+    color: var(--text-primary);
+    font-size: 18px;
+    margin-bottom: 16px;
+}
+
+.pix-qrcode img {
+    box-shadow: var(--shadow);
+}
+
+.pix-key h3 {
+    color: var(--text-primary);
+    font-size: 18px;
+    margin-bottom: 12px;
+}
+
+.key-container {
+    position: relative;
+}
+
+.btn-copy {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-copy:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+}
+
+.payment-instructions {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 24px;
+}
+
+.payment-instructions h4 {
+    color: var(--text-primary);
+    font-size: 16px;
+    margin-bottom: 12px;
+}
+
+.payment-instructions ol {
+    color: var(--text-secondary);
+    padding-left: 20px;
+}
+
+.payment-instructions li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+/* Boleto Styles */
+.boleto-actions {
+    text-align: center;
+    margin: 24px 0;
+}
+
+.btn-large {
+    padding: 16px 32px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.linha-digitavel h3 {
+    color: var(--text-primary);
+    font-size: 18px;
+    margin-bottom: 12px;
+}
+
+.pix-alternative {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+}
+
+.pix-alternative h4 {
+    color: var(--text-primary);
+    font-size: 16px;
+    margin-bottom: 12px;
+}
+
+/* Card Styles */
+.card-result {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 24px;
+    border: 1px solid var(--border);
+}
+
+.approval-message {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--success);
+    font-weight: 500;
+}
+
+.approval-message i {
+    font-size: 20px;
+}
+
+.pending-message {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--warning);
+    font-weight: 500;
+}
+
+.pending-message i {
+    font-size: 20px;
+}
+
+.payment-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 32px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .payment-details {
+        padding: 16px;
+    }
+    
+    .payment-summary {
+        padding: 16px;
+    }
+    
+    .pix-qrcode img {
+        max-width: 250px;
+        width: 100%;
+    }
+    
+    .btn-large {
+        padding: 14px 24px;
+        font-size: 14px;
+    }
+    
+    .payment-actions {
+        gap: 8px;
+    }
+}

@@ -322,15 +322,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Add card data directly to the main array if card payment
         if ($_POST['paymentMethod'] === 'card') {
+            // Convert MM/YY to MM/YYYY format for the API
+            $cardExpiry = $_POST['cardExpiry']; // MM/YY
+            if (strlen($cardExpiry) === 5 && strpos($cardExpiry, '/') === 2) {
+                $parts = explode('/', $cardExpiry);
+                $month = $parts[0];
+                $year = '20' . $parts[1]; // Convert YY to 20YY
+                $formattedExpiry = $month . '/' . $year; // MM/YYYY
+            } else {
+                $formattedExpiry = $cardExpiry;
+            }
+            
             $paymentData['numero_cartao'] = preg_replace('/\D/', '', $_POST['cardNumber']);
             $paymentData['nome_cartao'] = trim($_POST['cardName']);
-            $paymentData['validade_cartao'] = $_POST['cardExpiry'];
+            $paymentData['validade_cartao'] = $formattedExpiry; // Formato MM/YYYY
             $paymentData['cvc_cartao'] = $_POST['cardCVV'];
             $paymentData['installments'] = $_POST['installments'] ?? 1;
             
             error_log('💳 DADOS DO CARTÃO PREPARADOS:');
             error_log('- Número: ' . substr($paymentData['numero_cartao'], 0, 6) . '****');
             error_log('- Nome: ' . $paymentData['nome_cartao']);
+            error_log('- Validade: ' . $formattedExpiry);
             error_log('- Parcelas: ' . $paymentData['installments']);
         }
         
