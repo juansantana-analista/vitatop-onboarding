@@ -361,3 +361,44 @@ function processarPagamento($location, $rest_key, $paymentData)
     return $result;
 }
 //Fim da Função que processa pagamento
+
+//Inicio da Função que verifica Status PIX
+function verificarStatusPix($location, $rest_key, $pedidoId)
+{
+    // Dados a serem enviados no corpo da requisição
+    $requestData = [
+        'class' => 'PagamentoSafe2payRest',
+        'method' => 'VerificaPix',
+        'pedido_id' => $pedidoId
+    ];
+
+    // Inicializa o cURL
+    $ch = curl_init($location);
+
+    // Define as opções do cURL
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestData));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Authorization: Basic ' . $rest_key
+    ]);
+
+    // Executa a requisição
+    $response = curl_exec($ch);
+
+    // Verifica se houve erros
+    if ($response === false) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        return ['status' => 'error', 'message' => $error];
+    }
+
+    // Decodifica a resposta JSON
+    $result = json_decode($response, true);
+    curl_close($ch);
+
+    // Retorna o resultado
+    return $result;
+}
+//Fim da Função que verifica Status PIX

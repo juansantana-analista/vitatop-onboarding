@@ -255,7 +255,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } 
     // Check if this is a payment processing request
-        else if (isset($_POST['action']) && $_POST['action'] === 'process_payment') {
+    else if (isset($_POST['action']) && $_POST['action'] === 'process_payment') {
         
         // LOG: Dados recebidos do frontend
         error_log('🔄 AJAX HANDLER - DADOS RECEBIDOS:');
@@ -388,7 +388,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'message' => 'Erro interno no processamento do pagamento'
             ]);
         }
-    } else {
+    }
+    // NEW: Check PIX payment status
+    else if (isset($_POST['action']) && $_POST['action'] === 'check_pix_status') {
+        
+        error_log('🔍 VERIFICAÇÃO PIX - DADOS RECEBIDOS:');
+        error_log('- Pedido ID: ' . ($_POST['pedidoId'] ?? 'N/A'));
+        
+        // Validate required fields
+        if (!isset($_POST['pedidoId']) || empty($_POST['pedidoId'])) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'ID do pedido é obrigatório'
+            ]);
+            exit;
+        }
+        
+        try {
+            $response = verificarStatusPix($location, $rest_key, $_POST['pedidoId']);
+            
+            error_log('📥 RESPOSTA DA VERIFICAÇÃO PIX:');
+            error_log(print_r($response, true));
+            
+            if ($response['status'] === 'success') {
+                echo json_encode([
+                    'status' => 'success',
+                    'data' => $response['data'] ?? []
+                ]);
+            } else {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => $response['message'] ?? 'Erro ao verificar status do PIX'
+                ]);
+            }
+        } catch (Exception $e) {
+            error_log('❌ EXCEPTION NA VERIFICAÇÃO PIX:');
+            error_log('- Message: ' . $e->getMessage());
+            
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Erro interno ao verificar pagamento'
+            ]);
+        }
+    } 
+    else {
         echo json_encode([
             'status' => 'error',
             'message' => 'Ação não reconhecida'

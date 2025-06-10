@@ -11,6 +11,7 @@ class OnboardingApp {
         this.selectedPaymentMethod = null;
         this.swiperInstance = null;
         this.registeredUser = null; // Store user data after registration
+        this.pixHandler = null; // PIX handler instance
         
         this.init();
     }
@@ -1018,7 +1019,7 @@ class OnboardingApp {
         }
     }
     
-async processPayment() {
+    async processPayment() {
         if (!this.selectedPaymentMethod) {
             this.showError('Selecione uma forma de pagamento');
             return;
@@ -1149,6 +1150,11 @@ async processPayment() {
         }
     }
     
+    // Initialize PIX handler
+    initPixHandler() {
+        this.pixHandler = new PixPaymentHandler(this);
+    }
+    
     showPaymentResult() {
         // Hide progress bar
         const progressContainer = document.querySelector('.progress-container');
@@ -1196,6 +1202,16 @@ async processPayment() {
     }
     
     createPixPaymentContent(data) {
+        // Inicializa handler PIX se não existir
+        if (!this.pixHandler) {
+            this.initPixHandler();
+        }
+
+        // Inicia funcionalidades PIX
+        setTimeout(() => {
+            this.pixHandler.initPixPayment(data);
+        }, 1000);
+
         return `
             <div class="payment-success-header">
                 <div class="success-circle">
@@ -1221,6 +1237,26 @@ async processPayment() {
                     </div>
                 </div>
                 
+                <!-- Timer PIX -->
+                <div class="pix-timer">
+                    <div class="timer-container">
+                        <h4><i class="fas fa-clock"></i> Tempo restante para pagamento:</h4>
+                        <div class="timer-display">
+                            <span id="timerMinutes">30</span>:<span id="timerSeconds">00</span>
+                        </div>
+                        <div class="timer-warning" style="display: none;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Atenção: PIX expira em breve!
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Indicador de verificação automática -->
+                <div class="auto-check-indicator">
+                    <i class="fas fa-sync-alt"></i>
+                    Verificando pagamento automaticamente a cada 15 segundos
+                </div>
+                
                 ${data.pix_qrcode ? `
                 <div class="pix-qrcode">
                     <h3>QR Code PIX</h3>
@@ -1239,6 +1275,18 @@ async processPayment() {
                     </div>
                 </div>
                 
+                <!-- Botão "Já Paguei" -->
+                <div class="pix-check-container">
+                    <button type="button" class="btn-check-pix" onclick="app.pixHandler.checkPixManually('${data.pedido_id}')">
+                        <i class="fas fa-check"></i>
+                        Já paguei - Verificar pagamento
+                    </button>
+                    <p class="check-info">
+                        <i class="fas fa-info-circle"></i>
+                        Clique aqui após efetuar o pagamento para verificarmos se foi processado
+                    </p>
+                </div>
+                
                 <div class="payment-instructions">
                     <h4>Como pagar:</h4>
                     <ol>
@@ -1246,6 +1294,7 @@ async processPayment() {
                         <li>Escolha a opção PIX</li>
                         <li>Escaneie o QR Code ou cole a chave PIX</li>
                         <li>Confirme o pagamento</li>
+                        <li>Clique em "Já paguei" para verificação imediata</li>
                     </ol>
                 </div>
             </div>
@@ -1470,247 +1519,6 @@ async processPayment() {
         this.showError('Tente outro método de pagamento');
     }
     
-    showPaymentResult() {
-        // Hide progress bar
-        const progressContainer = document.querySelector('.progress-container');
-        if (progressContainer) {
-            progressContainer.style.display = 'none';
-        }
-        
-        // Create payment result screen
-        const container = document.querySelector('.container');
-        const paymentData = this.paymentResult.data;
-        
-        let paymentContent = '';
-        
-        if (this.paymentResult.method === 'pix') {
-            paymentContent = this.createPixPaymentContent(paymentData);
-        } else if (this.paymentResult.method === 'boleto') {
-            paymentContent = this.createBoletoPaymentContent(paymentData);
-        } else if (this.paymentResult.method === 'card') {
-            paymentContent = this.createCardPaymentContent(paymentData);
-        }
-        
-        container.innerHTML = `
-            <div class="payment-result">
-                ${paymentContent}
-                <div class="payment-actions">
-                    <a href="https://appvitatop.tecskill.com.br/" class="btn-primary">
-                        <i class="fas fa-external-link-alt"></i>
-                        Acessar Aplicativo
-                    </a>
-                    <button type="button" class="btn-secondary" onclick="startOver()">
-                        <i class="fas fa-redo"></i>
-                        Novo cadastro
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        // Add confetti effect
-        this.showConfetti();
-        
-        // Auto-copy PIX key if available
-        if (this.paymentResult.method === 'pix' && paymentData.pix_key) {
-            this.setupPixCopy(paymentData.pix_key);
-        }
-    }
-    
-    createPixPaymentContent(data) {
-        return `
-            <div class="payment-success-header">
-                <div class="success-circle">
-                    <i class="fas fa-qrcode success-icon"></i>
-                </div>
-                <h2>Pagamento via PIX</h2>
-                <p>Escaneie o QR Code ou use a chave PIX para finalizar o pagamento</p>
-            </div>
-            
-            <div class="payment-details">
-                <div class="payment-summary">
-                    <div class="summary-item">
-                        <span>Pedido:</span>
-                        <strong>#${data.pedido_id}</strong>
-                    </div>
-                    <div class="summary-item">
-                        <span>Valor:</span>
-                        <strong>R$ ${this.formatPrice(parseFloat(data.valor_total))}</strong>
-                    </div>
-                    <div class="summary-item">
-                        <span>Status:</span>
-                        <strong class="status-pending">${data.status_mensagem}</strong>
-                    </div>
-                </div>
-                
-                ${data.pix_qrcode ? `
-                <div class="pix-qrcode">
-                    <h3>QR Code PIX</h3>
-                    <img src="${data.pix_qrcode}" alt="QR Code PIX" style="max-width: 300px; border: 1px solid #e2e8f0; border-radius: 8px;">
-                </div>
-                ` : ''}
-                
-                <div class="pix-key">
-                    <h3>Chave PIX</h3>
-                    <div class="key-container">
-                        <textarea id="pixKey" readonly style="width: 100%; height: 120px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: monospace; font-size: 12px; resize: none;">${data.pix_key}</textarea>
-                        <button type="button" class="btn-copy" onclick="app.copyPixKey()">
-                            <i class="fas fa-copy"></i>
-                            Copiar Chave PIX
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="payment-instructions">
-                    <h4>Como pagar:</h4>
-                    <ol>
-                        <li>Abra o aplicativo do seu banco</li>
-                        <li>Escolha a opção PIX</li>
-                        <li>Escaneie o QR Code ou cole a chave PIX</li>
-                        <li>Confirme o pagamento</li>
-                    </ol>
-                </div>
-            </div>
-        `;
-    }
-    
-    createBoletoPaymentContent(data) {
-        return `
-            <div class="payment-success-header">
-                <div class="success-circle">
-                    <i class="fas fa-barcode success-icon"></i>
-                </div>
-                <h2>Boleto Bancário</h2>
-                <p>Seu boleto foi gerado com sucesso. Pague até o vencimento.</p>
-            </div>
-            
-            <div class="payment-details">
-                <div class="payment-summary">
-                    <div class="summary-item">
-                        <span>Pedido:</span>
-                        <strong>#${data.pedido_id}</strong>
-                    </div>
-                    <div class="summary-item">
-                        <span>Valor:</span>
-                        <strong>R$ ${this.formatPrice(parseFloat(data.valor_total))}</strong>
-                    </div>
-                    <div class="summary-item">
-                        <span>Vencimento:</span>
-                        <strong>${data.data_vencimento}</strong>
-                    </div>
-                </div>
-                
-                <div class="boleto-actions">
-                    <a href="${data.boleto_impressao}" target="_blank" class="btn-primary btn-large">
-                        <i class="fas fa-download"></i>
-                        Baixar Boleto
-                    </a>
-                </div>
-                
-                <div class="linha-digitavel">
-                    <h3>Linha Digitável</h3>
-                    <div class="key-container">
-                        <input type="text" id="linhaDigitavel" value="${data.boleto_linhadigitavel}" readonly style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: monospace; font-size: 14px; text-align: center; letter-spacing: 1px;">
-                        <button type="button" class="btn-copy" onclick="app.copyLinhaDigitavel()">
-                            <i class="fas fa-copy"></i>
-                            Copiar Linha Digitável
-                        </button>
-                    </div>
-                </div>
-                
-                ${data.pix_key ? `
-                <div class="pix-alternative">
-                    <h4>Ou pague via PIX:</h4>
-                    <div class="key-container">
-                        <textarea id="pixKeyBoleto" readonly style="width: 100%; height: 80px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: monospace; font-size: 12px; resize: none;">${data.pix_key}</textarea>
-                        <button type="button" class="btn-copy" onclick="app.copyPixKeyBoleto()">
-                            <i class="fas fa-copy"></i>
-                            Copiar PIX
-                        </button>
-                    </div>
-                </div>
-                ` : ''}
-            </div>
-        `;
-    }
-    
-    createCardPaymentContent(data) {
-        const isApproved = data.status_compra === '3' || data.status_mensagem?.toLowerCase().includes('aprovado');
-        
-        return `
-            <div class="payment-success-header">
-                <div class="success-circle ${isApproved ? 'approved' : 'recusado'}">
-                    <i class="fas fa-credit-card success-icon"></i>
-                </div>
-                <h2>Pagamento no Cartão</h2>
-                <p>${isApproved ? 'Pagamento aprovado com sucesso!' : 'Pagamento Recusado!'}</p>
-            </div>
-            
-            <div class="payment-details">
-                <div class="payment-summary">
-                    <div class="summary-item">
-                        <span>Pedido:</span>
-                        <strong>#${data.pedido_id}</strong>
-                    </div>
-                    <div class="summary-item">
-                        <span>Valor:</span>
-                        <strong>R$ ${this.formatPrice(parseFloat(data.valor_total))}</strong>
-                    </div>
-                    <div class="summary-item">
-                        <span>Status:</span>
-                        <strong class="${isApproved ? 'status-approved' : 'status-recusado'}">${data.status_mensagem}</strong>
-                    </div>
-                </div>
-                
-                <div class="card-result">
-                    ${isApproved ? `
-                        <div class="approval-message">
-                            <i class="fas fa-check-circle"></i>
-                            <span>Transação aprovada! Você receberá a confirmação por email.</span>
-                        </div>
-                    ` : `
-                        <div class="pending-message">
-                            <i class="fas fa-clock"></i>
-                            <span>Pagamento Recusado.</span>
-                        </div>
-                    `}
-                </div>
-            </div>
-        `;
-    }
-    
-    copyPixKey() {
-        const pixKey = document.getElementById('pixKey');
-        pixKey.select();
-        document.execCommand('copy');
-        this.showSuccess('Chave PIX copiada para a área de transferência!');
-    }
-    
-    copyLinhaDigitavel() {
-        const linha = document.getElementById('linhaDigitavel');
-        linha.select();
-        document.execCommand('copy');
-        this.showSuccess('Linha digitável copiada para a área de transferência!');
-    }
-    
-    copyPixKeyBoleto() {
-        const pixKey = document.getElementById('pixKeyBoleto');
-        pixKey.select();
-        document.execCommand('copy');
-        this.showSuccess('Chave PIX copiada para a área de transferência!');
-    }
-    
-    setupPixCopy(pixKey) {
-        // Auto-copy PIX key and show notification
-        navigator.clipboard.writeText(pixKey).then(() => {
-            setTimeout(() => {
-                this.showSuccess('💡 Dica: A chave PIX já foi copiada automaticamente!');
-            }, 2000);
-        }).catch(() => {
-            // Fallback for older browsers
-            console.log('Auto-copy not supported');
-        });
-    }
-    
     prevStep() {
         if (this.currentStep > 1) {
             this.currentStep--;
@@ -1906,6 +1714,11 @@ async processPayment() {
     }
     
     startOver() {
+        // Cleanup PIX handler if exists
+        if (this.pixHandler) {
+            this.pixHandler.destroy();
+        }
+        
         // Reset everything
         this.currentStep = 1;
         this.totalSteps = 4;
@@ -1915,6 +1728,7 @@ async processPayment() {
         this.selectedCombo = null;
         this.selectedPaymentMethod = null;
         this.registeredUser = null;
+        this.pixHandler = null;
         
         // Reset form
         document.querySelectorAll('input').forEach(input => {
@@ -2019,6 +1833,323 @@ async processPayment() {
         setTimeout(() => {
             toast.remove();
         }, 4000);
+    }
+    
+    // Cleanup method
+    destroy() {
+        if (this.pixHandler) {
+            this.pixHandler.destroy();
+        }
+        if (this.swiperInstance) {
+            this.swiperInstance.destroy();
+        }
+    }
+}
+
+// PIX Payment Handler Class
+class PixPaymentHandler {
+    constructor(app) {
+        this.app = app;
+        this.pixTimer = null;
+        this.pixExpiration = null;
+        this.checkingStatus = false;
+        this.statusCheckInterval = null;
+    }
+
+    // Inicializa PIX com timer de 30 minutos
+    initPixPayment(paymentData) {
+        // Configura expiração para 30 minutos
+        this.pixExpiration = new Date(Date.now() + (30 * 60 * 1000));
+        
+        // Inicia timer visual
+        this.startTimer();
+        
+        // Inicia verificação automática a cada 15 segundos
+        this.startStatusCheck(paymentData.pedido_id);
+    }
+
+    startTimer() {
+        const timerContainer = document.querySelector('.pix-timer');
+        if (!timerContainer) {
+            // Criar container do timer se não existir
+            const pixDetails = document.querySelector('.pix-key');
+            if (pixDetails) {
+                const timer = document.createElement('div');
+                timer.className = 'pix-timer';
+                timer.innerHTML = `
+                    <div class="timer-container">
+                        <h4><i class="fas fa-clock"></i> Tempo restante para pagamento:</h4>
+                        <div class="timer-display">
+                            <span id="timerMinutes">30</span>:<span id="timerSeconds">00</span>
+                        </div>
+                        <div class="timer-warning" style="display: none;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Atenção: PIX expira em breve!
+                        </div>
+                    </div>
+                `;
+                pixDetails.parentNode.insertBefore(timer, pixDetails.nextSibling);
+            }
+        }
+
+        // Atualiza timer a cada segundo
+        this.pixTimer = setInterval(() => {
+            this.updateTimer();
+        }, 1000);
+
+        // Atualiza imediatamente
+        this.updateTimer();
+    }
+
+    updateTimer() {
+        const now = new Date();
+        const timeLeft = this.pixExpiration - now;
+
+        if (timeLeft <= 0) {
+            this.handlePixExpiration();
+            return;
+        }
+
+        const minutes = Math.floor(timeLeft / (1000 * 60));
+        const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+        const minutesEl = document.getElementById('timerMinutes');
+        const secondsEl = document.getElementById('timerSeconds');
+        const warningEl = document.querySelector('.timer-warning');
+
+        if (minutesEl && secondsEl) {
+            minutesEl.textContent = minutes.toString().padStart(2, '0');
+            secondsEl.textContent = seconds.toString().padStart(2, '0');
+
+            // Mostrar aviso quando restam 5 minutos ou menos
+            if (warningEl) {
+                if (minutes <= 5) {
+                    warningEl.style.display = 'flex';
+                } else {
+                    warningEl.style.display = 'none';
+                }
+            }
+
+            // Adicionar classe de urgência quando restam 2 minutos
+            const timerDisplay = document.querySelector('.timer-display');
+            if (timerDisplay) {
+                if (minutes <= 2) {
+                    timerDisplay.classList.add('urgent');
+                } else {
+                    timerDisplay.classList.remove('urgent');
+                }
+            }
+        }
+    }
+
+    handlePixExpiration() {
+        // Para o timer
+        if (this.pixTimer) {
+            clearInterval(this.pixTimer);
+            this.pixTimer = null;
+        }
+
+        // Para verificação de status
+        if (this.statusCheckInterval) {
+            clearInterval(this.statusCheckInterval);
+            this.statusCheckInterval = null;
+        }
+
+        // Atualiza interface
+        const timerDisplay = document.querySelector('.timer-display');
+        if (timerDisplay) {
+            timerDisplay.innerHTML = '<span class="expired">EXPIRADO</span>';
+            timerDisplay.classList.add('expired');
+        }
+
+        // Mostra mensagem de expiração
+        this.app.showError('PIX expirado! Inicie um novo pagamento.');
+
+        // Adiciona botão para novo pagamento
+        this.addNewPaymentButton();
+    }
+
+    addNewPaymentButton() {
+        const paymentActions = document.querySelector('.payment-actions');
+        if (paymentActions && !document.querySelector('.btn-new-payment')) {
+            const newPaymentBtn = document.createElement('button');
+            newPaymentBtn.className = 'btn-secondary btn-new-payment';
+            newPaymentBtn.innerHTML = '<i class="fas fa-redo"></i> Novo Pagamento';
+            newPaymentBtn.onclick = () => this.app.goBackToPayment();
+            
+            paymentActions.insertBefore(newPaymentBtn, paymentActions.firstChild);
+        }
+    }
+
+    startStatusCheck(pedidoId) {
+        // Verifica status a cada 15 segundos
+        this.statusCheckInterval = setInterval(() => {
+            this.checkPixStatus(pedidoId);
+        }, 15000);
+    }
+
+    async checkPixStatus(pedidoId) {
+        if (this.checkingStatus) return;
+
+        try {
+            this.checkingStatus = true;
+
+            const formData = new FormData();
+            formData.append('action', 'check_pix_status');
+            formData.append('pedidoId', pedidoId);
+
+            const response = await fetch('ajax_handler.php', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success' && result.data.data) {
+                const statusCompra = result.data.data.status_compra;
+                
+                // Status 3 = Aprovado
+                if (statusCompra === '3' || statusCompra === 3) {
+                    this.handlePixApproved(result.data.data);
+                }
+                // Status 1 = Pendente (continua verificando)
+                // Outros status = continua verificando
+            }
+
+        } catch (error) {
+            console.error('Erro ao verificar status PIX:', error);
+        } finally {
+            this.checkingStatus = false;
+        }
+    }
+
+    handlePixApproved(paymentData) {
+        // Para timer e verificações
+        if (this.pixTimer) {
+            clearInterval(this.pixTimer);
+            this.pixTimer = null;
+        }
+        if (this.statusCheckInterval) {
+            clearInterval(this.statusCheckInterval);
+            this.statusCheckInterval = null;
+        }
+
+        // Mostra confetti
+        this.app.showConfetti();
+
+        // Mostra mensagem de sucesso
+        this.app.showSuccess('🎉 Pagamento PIX confirmado com sucesso!');
+
+        // Atualiza a tela para mostrar sucesso
+        setTimeout(() => {
+            this.showPixSuccess(paymentData);
+        }, 1500);
+    }
+
+    showPixSuccess(paymentData) {
+        const container = document.querySelector('.container');
+        
+        container.innerHTML = `
+            <div class="payment-result">
+                <div class="payment-success-header">
+                    <div class="success-circle approved">
+                        <i class="fas fa-check success-icon"></i>
+                    </div>
+                    <h2>Pagamento PIX Confirmado!</h2>
+                    <p>Seu pagamento foi processado com sucesso</p>
+                </div>
+                
+                <div class="payment-details">
+                    <div class="payment-summary">
+                        <div class="summary-item">
+                            <span>Pedido:</span>
+                            <strong>#${paymentData.pedido_id}</strong>
+                        </div>
+                        <div class="summary-item">
+                            <span>Status:</span>
+                            <strong class="status-approved">${paymentData.status_mensagem}</strong>
+                        </div>
+                        <div class="summary-item">
+                            <span>Método:</span>
+                            <strong>PIX</strong>
+                        </div>
+                    </div>
+                    
+                    <div class="card-result approved">
+                        <div class="approval-message">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Pagamento confirmado! Você receberá a confirmação por email e já pode acessar o aplicativo.</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="payment-actions">
+                    <a href="https://appvitatop.tecskill.com.br/" class="btn-primary">
+                        <i class="fas fa-external-link-alt"></i>
+                        Acessar Aplicativo
+                    </a>
+                    <button type="button" class="btn-secondary" onclick="startOver()">
+                        <i class="fas fa-redo"></i>
+                        Novo cadastro
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    async checkPixManually(pedidoId) {
+        const checkButton = document.querySelector('.btn-check-pix');
+        if (!checkButton) return;
+
+        const originalHtml = checkButton.innerHTML;
+        checkButton.disabled = true;
+        checkButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando...';
+
+        try {
+            const formData = new FormData();
+            formData.append('action', 'check_pix_status');
+            formData.append('pedidoId', pedidoId);
+
+            const response = await fetch('ajax_handler.php', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success' && result.data.data) {
+                const statusCompra = result.data.data.status_compra;
+                
+                if (statusCompra === '3' || statusCompra === 3) {
+                    // Pagamento aprovado
+                    this.handlePixApproved(result.data.data);
+                } else {
+                    // Ainda pendente
+                    this.app.showError('Pagamento ainda não foi identificado. Aguarde alguns minutos e tente novamente.');
+                }
+            } else {
+                this.app.showError('Erro ao verificar pagamento. Tente novamente.');
+            }
+
+        } catch (error) {
+            console.error('Erro ao verificar PIX manualmente:', error);
+            this.app.showError('Erro de conexão. Tente novamente.');
+        } finally {
+            checkButton.disabled = false;
+            checkButton.innerHTML = originalHtml;
+        }
+    }
+
+    destroy() {
+        // Limpa timers quando necessário
+        if (this.pixTimer) {
+            clearInterval(this.pixTimer);
+            this.pixTimer = null;
+        }
+        if (this.statusCheckInterval) {
+            clearInterval(this.statusCheckInterval);
+            this.statusCheckInterval = null;
+        }
     }
 }
 
