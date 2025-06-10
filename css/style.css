@@ -959,6 +959,10 @@ body {
     background: var(--warning);
 }
 
+.success-circle.rejected {
+    background: var(--error, #ef4444);
+}
+
 .payment-details {
     background: var(--secondary);
     border-radius: var(--border-radius);
@@ -997,12 +1001,16 @@ body {
     font-weight: 600;
 }
 
-.status-recusado {
+.status-pending {
     color: var(--warning) !important;
 }
 
 .status-approved {
     color: var(--success) !important;
+}
+
+.status-rejected {
+    color: var(--error, #ef4444) !important;
 }
 
 /* PIX Styles */
@@ -1114,6 +1122,21 @@ body {
     border: 1px solid var(--border);
 }
 
+.card-result.approved {
+    border-left: 4px solid var(--success);
+    background: linear-gradient(135deg, #f0f9ff 0%, #ecfdf5 100%);
+}
+
+.card-result.rejected {
+    border-left: 4px solid var(--error, #ef4444);
+    background: linear-gradient(135deg, #fef2f2 0%, #fff1f2 100%);
+}
+
+.card-result.pending {
+    border-left: 4px solid var(--warning);
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
 .approval-message {
     display: flex;
     align-items: center;
@@ -1124,6 +1147,30 @@ body {
 
 .approval-message i {
     font-size: 20px;
+}
+
+.rejection-message {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--error, #ef4444);
+    font-weight: 500;
+}
+
+.rejection-message i {
+    font-size: 20px;
+}
+
+.rejection-message div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.rejection-message small {
+    font-weight: 400;
+    font-size: 14px;
+    opacity: 0.8;
 }
 
 .pending-message {
@@ -1143,6 +1190,13 @@ body {
     flex-direction: column;
     gap: 12px;
     margin-top: 32px;
+}
+
+.retry-payment {
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
 }
 
 /* Mobile Responsive */

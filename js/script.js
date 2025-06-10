@@ -1313,6 +1313,327 @@ async processPayment() {
     }
     
     createCardPaymentContent(data) {
+        // Converter status_compra para número para comparação correta
+        const statusCompra = parseInt(data.status_compra);
+        
+        // Status 3 = Aprovado, Status 8 = Recusado, outros = Pendente/Processando
+        const isApproved = statusCompra === 3;
+        const isRejected = statusCompra === 8;
+        const isPending = !isApproved && !isRejected;
+        
+        // Definir classe CSS e ícone baseado no status
+        let statusClass = 'pending';
+        let statusIcon = 'fas fa-clock';
+        let headerText = 'Processando pagamento...';
+        
+        if (isApproved) {
+            statusClass = 'approved';
+            statusIcon = 'fas fa-check-circle';
+            headerText = 'Pagamento aprovado com sucesso!';
+        } else if (isRejected) {
+            statusClass = 'rejected';
+            statusIcon = 'fas fa-times-circle';
+            headerText = 'Pagamento recusado';
+        }
+        
+        // Obter informações da bandeira
+        const bandeiraMap = {
+            1: 'Visa',
+            2: 'Mastercard',
+            3: 'American Express',
+            4: 'Elo',
+            5: 'Diners',
+            6: 'Discover',
+            7: 'JCB'
+        };
+        const nomeBandeira = bandeiraMap[data.bandeira] || 'Não identificada';
+        
+        return `
+            <div class="payment-success-header">
+                <div class="success-circle ${statusClass}">
+                    <i class="fas fa-credit-card success-icon"></i>
+                </div>
+                <h2>Pagamento no Cartão</h2>
+                <p>${headerText}</p>
+            </div>
+            
+            <div class="payment-details">
+                <div class="payment-summary">
+                    <div class="summary-item">
+                        <span>Pedido:</span>
+                        <strong>#${data.pedido_id}</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Valor:</span>
+                        <strong>R$ ${this.formatPrice(parseFloat(data.valor_total))}</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Status:</span>
+                        <strong class="status-${statusClass}">${data.status_mensagem}</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Cartão:</span>
+                        <strong>${nomeBandeira} ${data.cartao_numero}</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Portador:</span>
+                        <strong>${data.nome_cartao}</strong>
+                    </div>
+                </div>
+                
+                <div class="card-result ${statusClass}">
+                    ${isApproved ? `
+                        <div class="approval-message">
+                            <i class="${statusIcon}"></i>
+                            <span>Transação aprovada! Você receberá a confirmação por email e já pode acessar o aplicativo.</span>
+                        </div>
+                    ` : isRejected ? `
+                        <div class="rejection-message">
+                            <i class="${statusIcon}"></i>
+                            <div>
+                                <span>Transação recusada pela operadora do cartão.</span>
+                                <small>Verifique os dados do cartão ou tente outro método de pagamento.</small>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="pending-message">
+                            <i class="${statusIcon}"></i>
+                            <span>Aguardando confirmação da operadora do cartão.</span>
+                        </div>
+                    `}
+                </div>
+                
+                ${isRejected ? `
+                    <div class="retry-payment">
+                        <button type="button" class="btn-secondary" onclick="app.goBackToPayment()">
+                            <i class="fas fa-arrow-left"></i>
+                            Tentar outro método
+                        </button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+    
+    copyPixKey() {
+        const pixKey = document.getElementById('pixKey');
+        pixKey.select();
+        document.execCommand('copy');
+        this.showSuccess('Chave PIX copiada para a área de transferência!');
+    }
+    
+    copyLinhaDigitavel() {
+        const linha = document.getElementById('linhaDigitavel');
+        linha.select();
+        document.execCommand('copy');
+        this.showSuccess('Linha digitável copiada para a área de transferência!');
+    }
+    
+    copyPixKeyBoleto() {
+        const pixKey = document.getElementById('pixKeyBoleto');
+        pixKey.select();
+        document.execCommand('copy');
+        this.showSuccess('Chave PIX copiada para a área de transferência!');
+    }
+    
+    setupPixCopy(pixKey) {
+        // Auto-copy PIX key and show notification
+        navigator.clipboard.writeText(pixKey).then(() => {
+            setTimeout(() => {
+                this.showSuccess('💡 Dica: A chave PIX já foi copiada automaticamente!');
+            }, 2000);
+        }).catch(() => {
+            // Fallback for older browsers
+            console.log('Auto-copy not supported');
+        });
+    }
+    
+    goBackToPayment() {
+        // Reset payment method selection
+        this.selectedPaymentMethod = null;
+        document.querySelectorAll('.payment-method').forEach(method => {
+            method.classList.remove('selected');
+        });
+        this.updatePaymentDetails();
+        
+        // Show step 4 again
+        this.currentStep = 4;
+        this.showStep(4);
+        
+        // Show progress bar
+        const progressContainer = document.querySelector('.progress-container');
+        if (progressContainer) {
+            progressContainer.style.display = 'block';
+        }
+        this.updateProgress();
+        
+        this.showError('Tente outro método de pagamento');
+    }
+    
+    showPaymentResult() {
+        // Hide progress bar
+        const progressContainer = document.querySelector('.progress-container');
+        if (progressContainer) {
+            progressContainer.style.display = 'none';
+        }
+        
+        // Create payment result screen
+        const container = document.querySelector('.container');
+        const paymentData = this.paymentResult.data;
+        
+        let paymentContent = '';
+        
+        if (this.paymentResult.method === 'pix') {
+            paymentContent = this.createPixPaymentContent(paymentData);
+        } else if (this.paymentResult.method === 'boleto') {
+            paymentContent = this.createBoletoPaymentContent(paymentData);
+        } else if (this.paymentResult.method === 'card') {
+            paymentContent = this.createCardPaymentContent(paymentData);
+        }
+        
+        container.innerHTML = `
+            <div class="payment-result">
+                ${paymentContent}
+                <div class="payment-actions">
+                    <a href="https://appvitatop.tecskill.com.br/" class="btn-primary">
+                        <i class="fas fa-external-link-alt"></i>
+                        Acessar Aplicativo
+                    </a>
+                    <button type="button" class="btn-secondary" onclick="startOver()">
+                        <i class="fas fa-redo"></i>
+                        Novo cadastro
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Add confetti effect
+        this.showConfetti();
+        
+        // Auto-copy PIX key if available
+        if (this.paymentResult.method === 'pix' && paymentData.pix_key) {
+            this.setupPixCopy(paymentData.pix_key);
+        }
+    }
+    
+    createPixPaymentContent(data) {
+        return `
+            <div class="payment-success-header">
+                <div class="success-circle">
+                    <i class="fas fa-qrcode success-icon"></i>
+                </div>
+                <h2>Pagamento via PIX</h2>
+                <p>Escaneie o QR Code ou use a chave PIX para finalizar o pagamento</p>
+            </div>
+            
+            <div class="payment-details">
+                <div class="payment-summary">
+                    <div class="summary-item">
+                        <span>Pedido:</span>
+                        <strong>#${data.pedido_id}</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Valor:</span>
+                        <strong>R$ ${this.formatPrice(parseFloat(data.valor_total))}</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Status:</span>
+                        <strong class="status-pending">${data.status_mensagem}</strong>
+                    </div>
+                </div>
+                
+                ${data.pix_qrcode ? `
+                <div class="pix-qrcode">
+                    <h3>QR Code PIX</h3>
+                    <img src="${data.pix_qrcode}" alt="QR Code PIX" style="max-width: 300px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                </div>
+                ` : ''}
+                
+                <div class="pix-key">
+                    <h3>Chave PIX</h3>
+                    <div class="key-container">
+                        <textarea id="pixKey" readonly style="width: 100%; height: 120px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: monospace; font-size: 12px; resize: none;">${data.pix_key}</textarea>
+                        <button type="button" class="btn-copy" onclick="app.copyPixKey()">
+                            <i class="fas fa-copy"></i>
+                            Copiar Chave PIX
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="payment-instructions">
+                    <h4>Como pagar:</h4>
+                    <ol>
+                        <li>Abra o aplicativo do seu banco</li>
+                        <li>Escolha a opção PIX</li>
+                        <li>Escaneie o QR Code ou cole a chave PIX</li>
+                        <li>Confirme o pagamento</li>
+                    </ol>
+                </div>
+            </div>
+        `;
+    }
+    
+    createBoletoPaymentContent(data) {
+        return `
+            <div class="payment-success-header">
+                <div class="success-circle">
+                    <i class="fas fa-barcode success-icon"></i>
+                </div>
+                <h2>Boleto Bancário</h2>
+                <p>Seu boleto foi gerado com sucesso. Pague até o vencimento.</p>
+            </div>
+            
+            <div class="payment-details">
+                <div class="payment-summary">
+                    <div class="summary-item">
+                        <span>Pedido:</span>
+                        <strong>#${data.pedido_id}</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Valor:</span>
+                        <strong>R$ ${this.formatPrice(parseFloat(data.valor_total))}</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Vencimento:</span>
+                        <strong>${data.data_vencimento}</strong>
+                    </div>
+                </div>
+                
+                <div class="boleto-actions">
+                    <a href="${data.boleto_impressao}" target="_blank" class="btn-primary btn-large">
+                        <i class="fas fa-download"></i>
+                        Baixar Boleto
+                    </a>
+                </div>
+                
+                <div class="linha-digitavel">
+                    <h3>Linha Digitável</h3>
+                    <div class="key-container">
+                        <input type="text" id="linhaDigitavel" value="${data.boleto_linhadigitavel}" readonly style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: monospace; font-size: 14px; text-align: center; letter-spacing: 1px;">
+                        <button type="button" class="btn-copy" onclick="app.copyLinhaDigitavel()">
+                            <i class="fas fa-copy"></i>
+                            Copiar Linha Digitável
+                        </button>
+                    </div>
+                </div>
+                
+                ${data.pix_key ? `
+                <div class="pix-alternative">
+                    <h4>Ou pague via PIX:</h4>
+                    <div class="key-container">
+                        <textarea id="pixKeyBoleto" readonly style="width: 100%; height: 80px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: monospace; font-size: 12px; resize: none;">${data.pix_key}</textarea>
+                        <button type="button" class="btn-copy" onclick="app.copyPixKeyBoleto()">
+                            <i class="fas fa-copy"></i>
+                            Copiar PIX
+                        </button>
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    }
+    
+    createCardPaymentContent(data) {
         const isApproved = data.status_compra === '3' || data.status_mensagem?.toLowerCase().includes('aprovado');
         
         return `
