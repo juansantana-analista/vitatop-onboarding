@@ -997,7 +997,7 @@ body {
     font-weight: 600;
 }
 
-.status-pending {
+.status-recusado {
     color: var(--warning) !important;
 }
 

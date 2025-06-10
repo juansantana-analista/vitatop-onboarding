@@ -1313,15 +1313,15 @@ async processPayment() {
     }
     
     createCardPaymentContent(data) {
-        const isApproved = data.status_compra === '1' || data.status_mensagem?.toLowerCase().includes('aprovado');
+        const isApproved = data.status_compra === '3' || data.status_mensagem?.toLowerCase().includes('aprovado');
         
         return `
             <div class="payment-success-header">
-                <div class="success-circle ${isApproved ? 'approved' : 'pending'}">
+                <div class="success-circle ${isApproved ? 'approved' : 'recusado'}">
                     <i class="fas fa-credit-card success-icon"></i>
                 </div>
                 <h2>Pagamento no Cartão</h2>
-                <p>${isApproved ? 'Pagamento aprovado com sucesso!' : 'Processando pagamento...'}</p>
+                <p>${isApproved ? 'Pagamento aprovado com sucesso!' : 'Pagamento Recusado!'}</p>
             </div>
             
             <div class="payment-details">
@@ -1336,7 +1336,7 @@ async processPayment() {
                     </div>
                     <div class="summary-item">
                         <span>Status:</span>
-                        <strong class="${isApproved ? 'status-approved' : 'status-pending'}">${data.status_mensagem}</strong>
+                        <strong class="${isApproved ? 'status-approved' : 'status-recusado'}">${data.status_mensagem}</strong>
                     </div>
                 </div>
                 
@@ -1349,7 +1349,7 @@ async processPayment() {
                     ` : `
                         <div class="pending-message">
                             <i class="fas fa-clock"></i>
-                            <span>Aguardando confirmação da operadora do cartão.</span>
+                            <span>Pagamento Recusado.</span>
                         </div>
                     `}
                 </div>
