@@ -3,7 +3,7 @@
 session_start();
 
 // URL do serviço REST
-$location = 'https://vitatophomologa.tecskill.com.br/rest.php';
+$location = 'https://vitatop.tecskill.com.br/rest.php';
 // Chave de autenticação REST
 $rest_key = '50119e057567b086d83fe5dd18336042ff2cf7bef3c24807bc55e34dbe5a';
 
