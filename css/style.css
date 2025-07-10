@@ -1500,3 +1500,285 @@ body {
 .pix-timer.expired .timer-container h4 i {
     color: #ef4444;
 }
+/* ==============================================
+   TERMOS DE CONTRATO - ADICIONAR NO FINAL DO style.css
+   ============================================== */
+
+/* Modal de Contrato */
+.contract-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+    z-index: 10000;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.contract-modal.show {
+    display: flex;
+    opacity: 1;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.contract-content {
+    background: white;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 800px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.contract-modal.show .contract-content {
+    transform: scale(1);
+}
+
+.contract-header {
+    padding: 24px 32px 16px 32px;
+    border-bottom: 2px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.contract-header h2 {
+    color: #1e293b;
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.contract-header h2 i {
+    color: #7cbe42;
+    font-size: 24px;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #64748b;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+    line-height: 1;
+}
+
+.close-btn:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+.contract-body {
+    padding: 24px 32px;
+    overflow-y: auto;
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #475569;
+}
+
+.contract-text {
+    white-space: pre-wrap;
+    margin-bottom: 24px;
+}
+
+.contract-footer {
+    padding: 20px 32px 32px 32px;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    border-radius: 0 0 16px 16px;
+}
+
+.contract-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+    cursor: pointer;
+}
+
+.contract-checkbox input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: #7cbe42;
+    cursor: pointer;
+    margin-top: 2px;
+}
+
+.contract-checkbox label {
+    color: #334155;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.contract-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.btn-cancel {
+    background: white;
+    color: #64748b;
+    border: 2px solid #e2e8f0;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-cancel:hover {
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+.btn-accept {
+    background: linear-gradient(135deg, #7cbe42 0%, #00591f 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.btn-accept.enabled {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.btn-accept.enabled:hover {
+    background: linear-gradient(135deg, #6aaa3a 0%, #004d1b 100%);
+    transform: translateY(-1px);
+}
+
+/* Checkbox de Termos nos Formulários */
+.terms-container {
+    margin: 16px 0;
+}
+
+.terms-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.terms-checkbox:hover {
+    border-color: #cbd5e1;
+    background: #f1f5f9;
+}
+
+.terms-checkbox.error {
+    border-color: #ef4444;
+    background: #fef2f2;
+    animation: shake 0.5s ease-in-out;
+}
+
+.terms-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #7cbe42;
+    cursor: pointer;
+    margin-top: 2px;
+}
+
+.terms-text {
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.terms-link {
+    color: #7cbe42;
+    text-decoration: underline;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.terms-link:hover {
+    color: #00591f;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .contract-modal {
+        padding: 12px;
+    }
+
+    .contract-content {
+        max-height: 95vh;
+    }
+
+    .contract-header {
+        padding: 20px 24px 12px 24px;
+    }
+
+    .contract-header h2 {
+        font-size: 18px;
+    }
+
+    .contract-body {
+        padding: 20px 24px;
+        font-size: 13px;
+    }
+
+    .contract-footer {
+        padding: 16px 24px 24px 24px;
+    }
+
+    .contract-actions {
+        flex-direction: column;
+    }
+
+    .btn-cancel,
+    .btn-accept {
+        width: 100%;
+        text-align: center;
+    }
+    
+    .terms-checkbox {
+        padding: 12px;
+    }
+    
+    .terms-text {
+        font-size: 13px;
+    }
+}
+
+/* Animação para checkbox */
+.terms-checkbox input[type="checkbox"]:checked {
+    animation: checkPulse 0.3s ease;
+}
+
+@keyframes checkPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}

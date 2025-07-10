@@ -517,6 +517,21 @@ class OnboardingApp {
                 errors.push('Tipo de pessoa não selecionado');
                 this.showError('Selecione o tipo de cadastro');
             }
+            
+            // NOVA VALIDAÇÃO: Verificar aceite dos termos
+            const termsCheckbox = document.getElementById('acceptTerms');
+            if (termsCheckbox && !termsCheckbox.checked) {
+                isValid = false;
+                errors.push('Termos não aceitos');
+                
+                // Adicionar classe de erro visual
+                const termsContainer = document.getElementById('termsCheckbox');
+                if (termsContainer) {
+                    termsContainer.classList.add('error');
+                }
+                
+                this.showError('Você deve aceitar os termos e condições para continuar');
+            }
         }
         
         if (!isValid) {
@@ -2346,11 +2361,175 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+// Texto do contrato
+const CONTRACT_TEXT = `CONTRATO DE CREDENCIAMENTO DE CONSULTOR/DISTRIBUIDOR INDEPENDENTE
+
+Eu, PESSOA FÍSICA E/OU JURÍDICA, já devidamente inscrito no Cadastro de Consultor Independente no sistema da VITATOP constado no sistema de cadastro VITATOP, confirmo que estou inscrito sob CPF/CNPJ, e que todas informações que preenchi no Cadastro de Consultor Independente VITATOP são fidedignas, assim, denominado CONSULTOR/DISTRIBUIDOR INDEPENDENTE, e;
+
+VITATOP®, pertencente a empresa SKILL TECNOLOGIA DA INFORMAÇÃO LTDA, CNPJ: 28.804.621/0001-47, com sede na Rua Dr. Osvaldo Cruz, nº 510, sala 304, na cidade de Apucarana, estado do Paraná, CEP: 86.800.720, denominada VITATOP®, através do presente instrumento, concordam e assumem entre si seguir e obedecer as seguintes cláusulas e condições:
+
+FUNDAMENTAÇÃO LEGAL
+
+O presente contrato baseia-se pelo artigo 170 da Constituição Federal Brasileira;
+
+Art. 170. A ordem econômica, fundada na valorização do trabalho humano e na livre iniciativa, tem por fim assegurar a todos existência digna, conforme os ditames da justiça social, observados os seguintes princípios:
+I - Soberania nacional; II - propriedade privada; III - função social da propriedade; IV - livre concorrência; V - Defesa do consumidor; VI - defesa do meio ambiente; VII - redução das desigualdades regionais e sociais; VIII - busca do pleno emprego; IX - tratamento favorecido para as empresas de pequeno porte.
+
+CLÁUSULA 1º - DO OBJETO
+
+1.1 - Este contrato se trata do Credenciamento do Consultor/Distribuidor Independente, para que através deste passe a realizar as atividades consistentes com a sua responsabilidade, dessa forma, não gerando nenhuma exclusividade ou subordinação entre as partes, sendo totalmente autónomo, perante todo Estado brasileiro e demais países do MERCOSUL.
+
+1.2 - Sua permanência como Consultor/Distribuidor Independente dependerá de completa e integral adequação e observação aos padrões, normas e regras, estipuladas e exigidas no presente contrato e a legislação vigente.
+
+CLÁUSULA 2º - DA FILIAÇÃO, CREDENCIAMENTO E SUAS REGRAS
+
+2.1 - O devido credenciamento da parte como Consultor/Distribuidor Independente VITATOP®, o mesmo deverá declarar que leu e concorda com os termos presente neste contrato.
+
+CLÁUSULA 3º - DO CONSULTOR/DISTRIBUIDOR INDEPENDENTE
+
+3.1 - O Consultor/Distribuidor Independente irá atuar de forma independente e autônoma no desenrolar da realização das atividades, não gerando neste contrato nenhuma obrigação de espécie trabalhista entre as partes.
+
+3.5 - Deverá possuir mais de 18 (dezoito) anos de idade e estar cadastrado no PIS/PASEP, ou mais de 16 (dezesseis) anos desde que seja emancipado judicialmente.
+
+3.6 - O Consultor/Distribuidor Independente assegura não estar envolvido em qualquer prática ilegal.
+
+3.7 - O Consultor/Distribuidor Independente compromete-se a proteger o nome e as marcas da VITATOP®.
+
+CLÁUSULA 4º - DOS PRODUTOS
+
+4.1 - Os valores dos produtos serão aqueles vigentes no catálogo da VITATOP®.
+
+CLÁUSULA 5º - DA VIGÊNCIA E PRAZO
+
+5.1 - O presente contrato terá vigência pelo prazo de 12 (doze) meses, renovável mediante acordo entre as partes.
+
+CLÁUSULA 6º - DA REMUNERAÇÃO
+
+6.1 - O Consultor/Distribuidor Independente terá acesso ao manual de regras e bonificações.
+
+CLÁUSULA 7º - DA PROPRIEDADE INTELECTUAL E CONFIDENCIALIDADE
+
+7.1 - Todos os desenvolvimentos e criações da VITATOP® são protegidos por direitos autorais.
+
+CLÁUSULA 8º - DADOS PESSOAIS E LGPD
+
+8.1 - As partes se comprometem a cumprir todas as leis de proteção de dados, incluindo a LGPD.
+
+CLÁUSULA 9º - DA RESCISÃO
+
+9.1 - O contrato pode ser rescindido por violação das regras estabelecidas.
+
+CLÁUSULA 10º - CONSIDERAÇÕES FINAIS
+
+10.14 - Ao ativar o cadastro, o Consultor/Distribuidor Independente declara ter lido e aceito todos os termos deste contrato.
+
+Este contrato é válido e tem força legal conforme a legislação brasileira vigente.`;
+
+// Funções para o modal de contrato
+function openContractModal() {
+    const modal = document.getElementById('contractModal');
+    const contractTextEl = document.getElementById('contractText');
+    
+    if (!modal || !contractTextEl) return;
+    
+    contractTextEl.textContent = CONTRACT_TEXT;
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('show'), 10);
+    document.body.style.overflow = 'hidden';
+    
+    const modalCheckbox = document.getElementById('modalAcceptTerms');
+    if (modalCheckbox) {
+        modalCheckbox.checked = false;
+        updateAcceptButton();
+    }
+}
+
+function closeContractModal() {
+    const modal = document.getElementById('contractModal');
+    if (!modal) return;
+    
+    modal.classList.remove('show');
+    setTimeout(() => {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }, 300);
+}
+
+function acceptContract() {
+    const modalCheckbox = document.getElementById('modalAcceptTerms');
+    const formCheckbox = document.getElementById('acceptTerms');
+    
+    if (modalCheckbox && formCheckbox && modalCheckbox.checked) {
+        formCheckbox.checked = true;
+        
+        const termsContainer = document.getElementById('termsCheckbox');
+        if (termsContainer) {
+            termsContainer.classList.remove('error');
+        }
+        
+        closeContractModal();
+        
+        if (window.app) {
+            window.app.showSuccess('Termos aceitos com sucesso!');
+        }
+    }
+}
+
+function updateAcceptButton() {
+    const checkbox = document.getElementById('modalAcceptTerms');
+    const button = document.getElementById('acceptContractBtn');
+    
+    if (checkbox && button) {
+        if (checkbox.checked) {
+            button.classList.add('enabled');
+        } else {
+            button.classList.remove('enabled');
+        }
+    }
+}
+
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     try {
         window.app = new OnboardingApp();
         console.log('Onboarding app initialized successfully');
+        
+        // ADICIONAR OS EVENT LISTENERS DOS TERMOS AQUI:
+        
+        // Modal checkbox change
+        const modalCheckbox = document.getElementById('modalAcceptTerms');
+        if (modalCheckbox) {
+            modalCheckbox.addEventListener('change', updateAcceptButton);
+        }
+        
+        // Form checkbox change - remove error when checked
+        const formCheckbox = document.getElementById('acceptTerms');
+        if (formCheckbox) {
+            formCheckbox.addEventListener('change', function() {
+                const termsContainer = document.getElementById('termsCheckbox');
+                if (this.checked && termsContainer) {
+                    termsContainer.classList.remove('error');
+                }
+            });
+        }
+        
+        // Close modal on ESC key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeContractModal();
+            }
+        });
+        
+        // Close modal on background click
+        const modal = document.getElementById('contractModal');
+        if (modal) {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeContractModal();
+                }
+            });
+        }
+        
     } catch (error) {
         console.error('Error initializing onboarding app:', error);
     }

@@ -112,7 +112,18 @@ if (isset($_GET['codigoindicador'])) {
                         </button>
                     </div>
                 </div>
-
+                
+                <div class="terms-container">
+                    <div class="terms-checkbox" id="termsCheckbox">
+                        <input type="checkbox" id="acceptTerms" name="acceptTerms" required>
+                        <label for="acceptTerms" class="terms-text">
+                            Li e aceito os 
+                            <span class="terms-link" onclick="openContractModal()">
+                                termos e condições do contrato
+                            </span>
+                        </label>
+                    </div>
+                </div>
                 <button type="button" class="btn-primary" onclick="nextStep()">
                     Continuar
                     <i class="fas fa-arrow-right"></i>
@@ -460,7 +471,39 @@ if (isset($_GET['codigoindicador'])) {
             </div>
         </div>
     </div>
-
+    <!-- MODAL CONTRATO -->
+    <div class="contract-modal" id="contractModal">
+        <div class="contract-content">
+            <div class="contract-header">
+                <h2><i class="fas fa-file-contract"></i> Contrato de Credenciamento</h2>
+                <button class="close-btn" onclick="closeContractModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="contract-body">
+                <div class="contract-text" id="contractText"></div>
+            </div>
+            
+            <div class="contract-footer">
+                <div class="contract-checkbox">
+                    <input type="checkbox" id="modalAcceptTerms">
+                    <label for="modalAcceptTerms">
+                        Li e aceito todos os termos e condições do Contrato de Credenciamento
+                    </label>
+                </div>
+                
+                <div class="contract-actions">
+                    <button class="btn-cancel" onclick="closeContractModal()">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button class="btn-accept" id="acceptContractBtn" onclick="acceptContract()">
+                        <i class="fas fa-check"></i> Aceitar Termos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.js"></script>
     <script src="js/config.js"></script>
     <script src="js/script.js"></script>
